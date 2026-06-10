@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClassifyHub — Information Asset Classification</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Auth -->
+  <div id="auth" class="auth-wrap hidden">
+    <div class="brand">Classify<span>Hub</span></div>
+    <div class="auth-card">
+      <div id="login-form">
+        <h1>Sign in</h1>
+        <div class="sub">Information asset auto-classification platform</div>
+        <div id="auth-msg" class="msg"></div>
+        <label>Email</label>
+        <input id="login-email" type="email" placeholder="you@company.com">
+        <label>Password</label>
+        <input id="login-password" type="password" placeholder="••••••••">
+        <button style="width:100%" onclick="doLogin()">Sign in</button>
+        <p class="muted" style="margin-top:14px;font-size:13px">
+          New organization? <a href="#" onclick="showRegister();return false">Create an account</a>
+        </p>
+      </div>
+      <div id="register-form" class="hidden">
+        <h1>Create your organization</h1>
+        <div class="sub">Free plan — no card required</div>
+        <div id="reg-msg" class="msg"></div>
+        <label>Company name</label>
+        <input id="reg-company" placeholder="Acme Corp">
+        <label>Your name</label>
+        <input id="reg-name" placeholder="Jane Doe">
+        <label>Email</label>
+        <input id="reg-email" type="email" placeholder="you@company.com">
+        <label>Password (min 8 chars)</label>
+        <input id="reg-password" type="password" placeholder="••••••••">
+        <button style="width:100%" onclick="doRegister()">Create account</button>
+        <p class="muted" style="margin-top:14px;font-size:13px">
+          Already registered? <a href="#" onclick="showLogin();return false">Sign in</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- App shell -->
+  <div id="app" class="layout hidden">
+    <div class="sidebar">
+      <div class="brand">Classify<span>Hub</span></div>
+      <div class="nav-section">Workspace</div>
+      <button class="nav-item" data-view="dashboard">Dashboard</button>
+      <button class="nav-item" data-view="classify">Classify</button>
+      <button class="nav-item" data-view="assets">Assets</button>
+      <div id="admin-nav" class="hidden">
+        <div class="nav-section">Admin Console</div>
+        <button class="nav-item" data-view="rules">Classification Rules</button>
+        <button class="nav-item" data-view="labels">Labels</button>
+        <button class="nav-item" data-view="users">Users</button>
+        <button class="nav-item" data-view="endpoints">Endpoints &amp; Builds</button>
+        <button class="nav-item" data-view="billing">Billing</button>
+        <button class="nav-item" data-view="audit">Audit Log</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="whoami">
+        <div id="who-name"></div>
+        <div id="who-tenant" class="muted"></div>
+        <a href="#" onclick="logout();return false">Sign out</a>
+      </div>
+    </div>
+    <div class="main">
+      <div id="view-msg" class="msg"></div>
+      <div id="view"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
