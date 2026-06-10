@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.db
+.env
+nohup.out
+agent/state.json
+agent/config.json

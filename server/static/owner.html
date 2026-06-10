@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClassifyHub — Platform Owner Console</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div id="auth" class="auth-wrap hidden">
+    <div class="brand">Classify<span>Hub</span> <span class="muted" style="font-size:14px">owner console</span></div>
+    <div class="auth-card">
+      <h1>Platform owner sign-in</h1>
+      <div class="sub">Restricted access — application owner only</div>
+      <div id="auth-msg" class="msg"></div>
+      <label>Email</label>
+      <input id="login-email" type="email" placeholder="owner@classifyhub.app">
+      <label>Password</label>
+      <input id="login-password" type="password" placeholder="••••••••">
+      <button style="width:100%" onclick="doLogin()">Sign in</button>
+      <p class="muted" style="margin-top:14px;font-size:13px">
+        Tenant user? <a href="/">Go to the app</a>
+      </p>
+    </div>
+  </div>
+
+  <div id="app" class="layout hidden">
+    <div class="sidebar">
+      <div class="brand">Classify<span>Hub</span></div>
+      <div class="nav-section">Owner Console</div>
+      <button class="nav-item" data-view="overview">Overview</button>
+      <button class="nav-item" data-view="tenants">Tenants</button>
+      <button class="nav-item" data-view="users">Registered Users</button>
+      <button class="nav-item" data-view="payments">Payments</button>
+      <button class="nav-item" data-view="plans">Plans</button>
+      <button class="nav-item" data-view="gateway">Payment Gateway</button>
+      <div class="spacer"></div>
+      <div class="whoami">
+        <div>Platform Owner</div>
+        <a href="#" onclick="logout();return false">Sign out</a>
+      </div>
+    </div>
+    <div class="main">
+      <div id="view-msg" class="msg"></div>
+      <div id="view"></div>
+    </div>
+  </div>
+
+  <script src="/static/owner.js"></script>
+</body>
+</html>
