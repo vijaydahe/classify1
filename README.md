@@ -79,6 +79,26 @@ Checkout is a mock implementation that records payments — swap
 `routers/billing.py:subscribe` for a real gateway using the keys the owner
 stores under *Payment Gateway* in the owner console.
 
+## Deploy to Vercel + Supabase
+
+1. **Supabase**: create a project, open the SQL Editor, and run
+   [`supabase/schema.sql`](supabase/schema.sql) — it creates all tables,
+   indexes, the three default plans, and the platform owner account.
+2. **Vercel**: import this repo (the included `vercel.json` and
+   `api/index.py` route everything to the FastAPI app) and set these
+   environment variables:
+
+   | Variable | Value |
+   |---|---|
+   | `CLASSIFYHUB_DATABASE_URL` | Supabase connection string (Settings → Database → *Connection pooling* URI, port `6543`, e.g. `postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres`) |
+   | `CLASSIFYHUB_SECRET_KEY` | a long random string for JWT signing |
+   | `CLASSIFYHUB_SKIP_BOOTSTRAP` | `1` (schema is managed by `supabase/schema.sql`) |
+
+3. Deploy. The tenant app is at `/`, the owner console at `/owner`,
+   API docs at `/docs`.
+
+The same code still runs locally on SQLite with zero configuration.
+
 ## Configuration (environment variables)
 
 | Variable | Default |

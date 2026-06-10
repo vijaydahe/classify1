@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -11,9 +12,12 @@ from .seed import seed_platform
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 
-Base.metadata.create_all(bind=engine)
-with SessionLocal() as db:
-    seed_platform(db)
+# When the schema is managed externally (e.g. supabase/schema.sql), set
+# CLASSIFYHUB_SKIP_BOOTSTRAP=1 to avoid create_all/seed on every cold start.
+if os.environ.get("CLASSIFYHUB_SKIP_BOOTSTRAP") != "1":
+    Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        seed_platform(db)
 
 app.include_router(auth.router)
 app.include_router(assets.router)
