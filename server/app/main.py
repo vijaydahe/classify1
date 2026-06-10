@@ -43,3 +43,21 @@ def owner_console():
 @app.get("/api/health", tags=["meta"])
 def health():
     return {"status": "ok", "app": APP_NAME, "version": APP_VERSION}
+
+
+@app.get("/api/health/db", tags=["meta"])
+def health_db():
+    """Verifies database connectivity and that the schema + owner seed exist."""
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("select 1"))
+            tables_ok = conn.execute(text(
+                "select count(*) from users where role = 'owner'")).scalar()
+        return {"database": "connected", "owner_accounts": tables_ok}
+    except Exception as exc:  # surface the driver error for deploy debugging
+        return JSONResponse(status_code=503, content={
+            "database": "error",
+            "detail": str(exc).splitlines()[0][:300],
+        })
