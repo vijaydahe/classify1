@@ -139,43 +139,51 @@ def infrastructure(_: User = Depends(require_owner), db: Session = Depends(get_d
 
     checks = [
         {"name": "Database latency", "value": f"{db_ms} ms", "status": _grade(db_ms, 30, 120),
-         "hint": "Round-trip from the app server to the database (avg of 3 pings)."},
+         "hint": "Round-trip from the app server to the database (avg of 3 pings).",
+         "fix": "1) Vercel → Project Settings → Functions → set the function region to the one closest to "
+                "your Supabase project (e.g. bom1 for ap-south-1). 2) Confirm the connection string uses the "
+                "transaction pooler (port 6543). 3) If still slow, buy the Supabase Compute add-on "
+                "(Project Settings → Add-ons)."},
         {"name": "Avg API response", "value": f"{avg_api_ms} ms", "status": _grade(avg_api_ms, 300, 800),
-         "hint": "Average across all API requests handled by this instance."},
+         "hint": "Average across all API requests handled by this instance.",
+         "fix": "Open browser DevTools → Network and read the Server-Timing header to find slow endpoints. "
+                "Then: raise function memory in Vercel (Settings → Functions → Memory — more memory = more CPU) "
+                "and upgrade Supabase compute if database latency is also elevated."},
         {"name": "Slowest API request", "value": f"{round(s['max_ms'], 1)} ms", "status": _grade(s["max_ms"], 1000, 3000),
-         "hint": "Worst single request since this instance started."},
+         "hint": "Worst single request since this instance started.",
+         "fix": "A single slow request is usually a cold start (first request after idle). Reduce impact with "
+                "Vercel Pro (faster cold starts) or keep the function warm: add a Vercel Cron Job that pings "
+                "/api/health every 5 minutes."},
         {"name": "Error rate (5xx)", "value": f"{error_rate}%", "status": _grade(error_rate, 0.5, 2),
-         "hint": "Server errors as a share of API requests."},
+         "hint": "Server errors as a share of API requests.",
+         "fix": "Do not scale yet — errors are usually bugs or exhausted DB connections, not capacity. "
+                "Open Vercel → Logs, find the failing endpoint and the Python exception, fix the cause. "
+                "If errors mention connection limits, you are not using the pooler URI."},
         {"name": "Instance memory", "value": f"{rss_mb} MB", "status": _grade(rss_mb, 512, 900),
-         "hint": "Peak memory of this serverless instance (typical limit 1024 MB)."},
+         "hint": "Peak memory of this serverless instance (typical limit 1024 MB).",
+         "fix": "Vercel → Project Settings → Functions → increase Memory (1024 → 2048/3008 MB). "
+                "This also doubles CPU, so API times improve too."},
     ]
 
+    # Every non-green check becomes an actionable recommendation; volume checks add capacity planning.
     recs = []
-    if db_ms > 120:
-        recs.append({"severity": "high", "title": "Upgrade or relocate the database",
-                     "detail": "Database round-trips exceed 120 ms. Move the Vercel function region next to "
-                               "your Supabase region, and/or upgrade the Supabase compute add-on."})
-    if avg_api_ms > 800:
-        recs.append({"severity": "high", "title": "API responses are slow",
-                     "detail": "Average API latency exceeds 800 ms. Check the slowest endpoints, then consider "
-                               "the Supabase compute upgrade and Vercel Pro for faster cold starts."})
-    if error_rate > 2:
-        recs.append({"severity": "high", "title": "Elevated server error rate",
-                     "detail": "More than 2% of API requests fail. Check Vercel function logs before scaling."})
-    if rss_mb > 900:
-        recs.append({"severity": "high", "title": "Memory near the function limit",
-                     "detail": "Raise the function memory in Vercel project settings (more memory also means more CPU)."})
+    for c in checks:
+        if c["status"] != "good":
+            recs.append({"severity": "high" if c["status"] == "poor" else "medium",
+                         "title": f"Fix: {c['name']} ({c['value']})", "detail": c["fix"]})
     if counts["assets"] > 100_000:
         recs.append({"severity": "medium", "title": "Large asset inventory",
-                     "detail": "Past ~100k assets, upgrade Supabase compute and consider table partitioning."})
+                     "detail": "Past ~100k assets, upgrade Supabase compute (Settings → Add-ons) and plan "
+                               "table partitioning for the assets table."})
     if counts["tenants"] > 50:
         recs.append({"severity": "medium", "title": "Tenant count growing",
                      "detail": "With 50+ tenants, move from the Supabase free tier to Pro for predictable "
                                "performance, daily backups and no project pausing."})
     if not recs:
-        recs.append({"severity": "ok", "title": "Capacity is healthy",
-                     "detail": "All signals are green for the current load. Re-check after onboarding pushes "
-                               "or marketing campaigns."})
+        recs.append({"severity": "ok", "title": "Capacity is healthy — nothing to fix",
+                     "detail": "All signals are green for the current load. Standard growth path when numbers "
+                               "turn amber: ① match Vercel function region to Supabase, ② Supabase Pro plan, "
+                               "③ Supabase Compute add-on, ④ more Vercel function memory, ⑤ Vercel Pro."})
 
     return {
         "checks": checks,

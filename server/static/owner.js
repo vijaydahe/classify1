@@ -265,6 +265,8 @@ const views = {
             <div class="num">${esc(c.value)}</div>
             <div class="lbl">${esc(c.name)} <span class="badge ${pill(c.status)}">${esc(c.status)}</span></div>
             <div class="lbl" style="margin-top:6px">${esc(c.hint)}</div>
+            ${c.status !== "good" ? `<div class="lbl" style="margin-top:8px;color:var(--amber)">
+              <strong>How to fix:</strong> ${esc(c.fix)}</div>` : ""}
           </div>`).join("")}
       </div>
       <div class="panel">
