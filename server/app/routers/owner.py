@@ -5,10 +5,10 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import require_owner
 from ..models import (
-    Asset, AuditLog, Endpoint, Payment, PaymentGatewayConfig, Plan,
-    Subscription, Tenant, User,
+    Asset, AuditLog, ContactMessage, Endpoint, Payment, PaymentGatewayConfig,
+    Plan, Subscription, Tenant, User,
 )
-from ..schemas import GatewayConfigIn, PlanOut, PlanUpdate
+from ..schemas import ContactIn, GatewayConfigIn, PlanOut, PlanUpdate
 
 router = APIRouter(prefix="/api/owner", tags=["owner"])
 
@@ -100,6 +100,26 @@ def update_plan(plan_id: int, payload: PlanUpdate,
     db.commit()
     db.refresh(plan)
     return plan
+
+
+@router.get("/messages")
+def list_messages(_: User = Depends(require_owner), db: Session = Depends(get_db)):
+    msgs = db.query(ContactMessage).order_by(ContactMessage.created_at.desc()).limit(500).all()
+    return [{
+        "id": m.id, "name": m.name, "email": m.email, "company": m.company,
+        "topic": m.topic, "message": m.message, "status": m.status,
+        "created_at": m.created_at.isoformat(),
+    } for m in msgs]
+
+
+@router.patch("/messages/{message_id}/toggle")
+def toggle_message(message_id: int, _: User = Depends(require_owner), db: Session = Depends(get_db)):
+    msg = db.get(ContactMessage, message_id)
+    if not msg:
+        raise HTTPException(404, "Message not found")
+    msg.status = "replied" if msg.status == "new" else "new"
+    db.commit()
+    return {"id": msg.id, "status": msg.status}
 
 
 @router.get("/gateway")

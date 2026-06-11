@@ -19,7 +19,7 @@
       <input id="login-password" type="password" placeholder="••••••••">
       <button style="width:100%" onclick="doLogin()">Sign in</button>
       <p class="muted" style="margin-top:14px;font-size:13px">
-        Tenant user? <a href="/">Go to the app</a>
+        Tenant user? <a href="/app">Go to the app</a>
       </p>
     </div>
   </div>
@@ -34,10 +34,12 @@
       <button class="nav-item" data-view="payments">Payments</button>
       <button class="nav-item" data-view="plans">Plans</button>
       <button class="nav-item" data-view="gateway">Payment Gateway</button>
+      <button class="nav-item" data-view="messages">Messages</button>
       <div class="spacer"></div>
       <div class="whoami">
         <div>Platform Owner</div>
-        <a href="#" onclick="logout();return false">Sign out</a>
+        <a href="#" onclick="logout();return false">Sign out</a> ·
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark">◐ theme</button>
       </div>
     </div>
     <div class="main">

@@ -6,6 +6,17 @@ function esc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* ---------- Theme (light is the default) ---------- */
+function applyTheme() {
+  document.body.classList.toggle("light", (localStorage.getItem("ch_theme") || "light") === "light");
+}
+function toggleTheme() {
+  const next = (localStorage.getItem("ch_theme") || "light") === "light" ? "dark" : "light";
+  localStorage.setItem("ch_theme", next);
+  applyTheme();
+}
+applyTheme();
+
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
   if (TOKEN) headers["Authorization"] = "Bearer " + TOKEN;
@@ -172,6 +183,28 @@ const views = {
     `);
   },
 
+  async messages() {
+    const msgs = await api("/api/owner/messages");
+    render(`
+      <h2>Contact messages</h2>
+      <div class="panel">
+        <table>
+          <tr><th>Date</th><th>From</th><th>Company</th><th>Topic</th><th>Message</th><th>Status</th><th></th></tr>
+          ${msgs.map(m => `<tr>
+            <td class="muted" style="white-space:nowrap">${m.created_at.replace("T", " ").slice(0, 16)}</td>
+            <td>${esc(m.name)}<br><span class="muted">${esc(m.email)}</span></td>
+            <td>${esc(m.company || "—")}</td>
+            <td><span class="badge badge-outline">${esc(m.topic)}</span></td>
+            <td style="max-width:340px;overflow-wrap:anywhere">${esc(m.message)}</td>
+            <td><span class="badge ${m.status === "new" ? "pill-amber" : "pill-green"}">${esc(m.status)}</span></td>
+            <td><button class="btn-sm btn-ghost" onclick="toggleMessage(${m.id})">
+              ${m.status === "new" ? "Mark replied" : "Mark new"}</button></td>
+          </tr>`).join("") || "<tr><td colspan=7 class='muted'>No messages yet</td></tr>"}
+        </table>
+      </div>
+    `);
+  },
+
   async gateway() {
     const g = await api("/api/owner/gateway");
     render(`
@@ -202,6 +235,13 @@ const views = {
     `);
   },
 };
+
+async function toggleMessage(id) {
+  try {
+    await api(`/api/owner/messages/${id}/toggle`, { method: "PATCH" });
+    nav("messages");
+  } catch (e) { flash(e.message, "err"); }
+}
 
 async function toggleTenant(id) {
   try {

@@ -5,6 +5,7 @@
   --panel: #1e293b;
   --panel-2: #273449;
   --border: #334155;
+  --row-border: #2a3850;
   --text: #e2e8f0;
   --muted: #94a3b8;
   --accent: #6366f1;
@@ -13,6 +14,38 @@
   --red: #ef4444;
   --amber: #f59e0b;
 }
+
+body.light {
+  --bg: #f1f5f9;
+  --panel: #ffffff;
+  --panel-2: #f1f5f9;
+  --border: #e2e8f0;
+  --row-border: #eef2f7;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #4f46e5;
+  --accent-hover: #6366f1;
+  --green: #16a34a;
+  --red: #dc2626;
+  --amber: #d97706;
+}
+body.light .pill-green { background: rgba(22,163,74,.12); }
+body.light .pill-red { background: rgba(220,38,38,.1); }
+body.light .pill-amber { background: rgba(217,119,6,.12); }
+body.light .msg.err { background: #fef2f2; color: #b91c1c; }
+body.light .msg.ok { background: #f0fdf4; color: #15803d; }
+body.light .card, body.light .panel, body.light .auth-card { box-shadow: 0 1px 3px rgba(15,23,42,.06); }
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.theme-toggle:hover { background: var(--panel-2); color: var(--text); }
 
 body {
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -100,7 +133,7 @@ a { color: var(--accent-hover); }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-td { padding: 9px 10px; border-bottom: 1px solid #2a3850; vertical-align: middle; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--row-border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 
 input, select, textarea {
