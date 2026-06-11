@@ -1,6 +1,12 @@
+import resource
+import sys
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
+
+from .. import metrics
 
 from ..database import get_db
 from ..deps import require_owner
@@ -36,18 +42,20 @@ def platform_stats(_: User = Depends(require_owner), db: Session = Depends(get_d
 
 @router.get("/tenants")
 def list_tenants(_: User = Depends(require_owner), db: Session = Depends(get_db)):
-    out = []
-    for t in db.query(Tenant).order_by(Tenant.created_at.desc()).all():
-        sub = db.query(Subscription).filter(Subscription.tenant_id == t.id).first()
-        out.append({
-            "id": t.id, "name": t.name, "slug": t.slug, "status": t.status,
-            "created_at": t.created_at.isoformat(),
-            "plan": sub.plan.name if sub else None,
-            "users": db.query(User).filter(User.tenant_id == t.id).count(),
-            "assets": db.query(Asset).filter(Asset.tenant_id == t.id).count(),
-            "endpoints": db.query(Endpoint).filter(Endpoint.tenant_id == t.id).count(),
-        })
-    return out
+    # Grouped counts instead of per-tenant queries: 5 queries total regardless of tenant count.
+    user_counts = dict(db.query(User.tenant_id, func.count()).group_by(User.tenant_id).all())
+    asset_counts = dict(db.query(Asset.tenant_id, func.count()).group_by(Asset.tenant_id).all())
+    endpoint_counts = dict(db.query(Endpoint.tenant_id, func.count()).group_by(Endpoint.tenant_id).all())
+    plans = {s.tenant_id: s.plan.name for s in
+             db.query(Subscription).join(Plan, Subscription.plan_id == Plan.id).all()}
+    return [{
+        "id": t.id, "name": t.name, "slug": t.slug, "status": t.status,
+        "created_at": t.created_at.isoformat(),
+        "plan": plans.get(t.id),
+        "users": user_counts.get(t.id, 0),
+        "assets": asset_counts.get(t.id, 0),
+        "endpoints": endpoint_counts.get(t.id, 0),
+    } for t in db.query(Tenant).order_by(Tenant.created_at.desc()).all()]
 
 
 @router.patch("/tenants/{tenant_id}/toggle")
@@ -100,6 +108,85 @@ def update_plan(plan_id: int, payload: PlanUpdate,
     db.commit()
     db.refresh(plan)
     return plan
+
+
+def _grade(value: float, good: float, fair: float) -> str:
+    return "good" if value <= good else ("fair" if value <= fair else "poor")
+
+
+@router.get("/infra")
+def infrastructure(_: User = Depends(require_owner), db: Session = Depends(get_db)):
+    """Live capacity & performance snapshot for infra upgrade decisions."""
+    pings = []
+    for _i in range(3):
+        t0 = time.perf_counter()
+        db.execute(text("select 1"))
+        pings.append((time.perf_counter() - t0) * 1000)
+    db_ms = round(sum(pings) / len(pings), 1)
+
+    s = metrics.stats
+    avg_api_ms = round(s["total_ms"] / s["requests"], 1) if s["requests"] else 0.0
+    error_rate = round(100 * s["errors"] / s["requests"], 2) if s["requests"] else 0.0
+    rss_mb = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
+    uptime_min = round((time.time() - metrics.started_at) / 60, 1)
+
+    counts = {
+        "tenants": db.query(Tenant).count(),
+        "users": db.query(User).count(),
+        "assets": db.query(Asset).count(),
+        "endpoints": db.query(Endpoint).count(),
+    }
+
+    checks = [
+        {"name": "Database latency", "value": f"{db_ms} ms", "status": _grade(db_ms, 30, 120),
+         "hint": "Round-trip from the app server to the database (avg of 3 pings)."},
+        {"name": "Avg API response", "value": f"{avg_api_ms} ms", "status": _grade(avg_api_ms, 300, 800),
+         "hint": "Average across all API requests handled by this instance."},
+        {"name": "Slowest API request", "value": f"{round(s['max_ms'], 1)} ms", "status": _grade(s["max_ms"], 1000, 3000),
+         "hint": "Worst single request since this instance started."},
+        {"name": "Error rate (5xx)", "value": f"{error_rate}%", "status": _grade(error_rate, 0.5, 2),
+         "hint": "Server errors as a share of API requests."},
+        {"name": "Instance memory", "value": f"{rss_mb} MB", "status": _grade(rss_mb, 512, 900),
+         "hint": "Peak memory of this serverless instance (typical limit 1024 MB)."},
+    ]
+
+    recs = []
+    if db_ms > 120:
+        recs.append({"severity": "high", "title": "Upgrade or relocate the database",
+                     "detail": "Database round-trips exceed 120 ms. Move the Vercel function region next to "
+                               "your Supabase region, and/or upgrade the Supabase compute add-on."})
+    if avg_api_ms > 800:
+        recs.append({"severity": "high", "title": "API responses are slow",
+                     "detail": "Average API latency exceeds 800 ms. Check the slowest endpoints, then consider "
+                               "the Supabase compute upgrade and Vercel Pro for faster cold starts."})
+    if error_rate > 2:
+        recs.append({"severity": "high", "title": "Elevated server error rate",
+                     "detail": "More than 2% of API requests fail. Check Vercel function logs before scaling."})
+    if rss_mb > 900:
+        recs.append({"severity": "high", "title": "Memory near the function limit",
+                     "detail": "Raise the function memory in Vercel project settings (more memory also means more CPU)."})
+    if counts["assets"] > 100_000:
+        recs.append({"severity": "medium", "title": "Large asset inventory",
+                     "detail": "Past ~100k assets, upgrade Supabase compute and consider table partitioning."})
+    if counts["tenants"] > 50:
+        recs.append({"severity": "medium", "title": "Tenant count growing",
+                     "detail": "With 50+ tenants, move from the Supabase free tier to Pro for predictable "
+                               "performance, daily backups and no project pausing."})
+    if not recs:
+        recs.append({"severity": "ok", "title": "Capacity is healthy",
+                     "detail": "All signals are green for the current load. Re-check after onboarding pushes "
+                               "or marketing campaigns."})
+
+    return {
+        "checks": checks,
+        "recommendations": recs,
+        "instance": {
+            "uptime_min": uptime_min,
+            "requests": s["requests"],
+            "python": sys.version.split()[0],
+        },
+        "counts": counts,
+    }
 
 
 @router.get("/messages")
