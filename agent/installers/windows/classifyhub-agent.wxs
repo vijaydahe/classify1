@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ClassifyHub endpoint agent — WiX Toolset source (produces a Windows .msi).
+
+  Build (on Windows, WiX v4):
+    wix build classifyhub-agent.wxs -o ClassifyHubAgent.msi
+  Sign for production:
+    signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 ClassifyHubAgent.msi
+
+  InstallPrivileges=elevated + InstallScope=perMachine means standard users
+  cannot install or uninstall. Deploy and lifecycle-manage via Intune/GPO
+  (see agent/installers/MANAGED_DEPLOYMENT.md). MSIs deployed through Intune/GPO
+  can also be marked so the per-user "Uninstall" entry is hidden.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="ClassifyHub Agent" Manufacturer="ClassifyHub"
+           Version="1.3.0.0" UpgradeCode="B6F4B7E2-7C2A-4F3D-9E1A-CLASSIFYHUB02"
+           InstallerVersion="500" Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of ClassifyHub Agent is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Hide the Add/Remove Programs uninstall button; removal is admin/managed only. -->
+    <Property Id="ARPNOREMOVE" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="ClassifyHub">
+        <Component Id="AgentScript" Guid="*">
+          <File Id="agent.py" Source="..\..\agent.py" KeyPath="yes" />
+        </Component>
+        <Component Id="AgentConfig" Guid="*" NeverOverwrite="yes">
+          <File Id="config.json" Source="..\..\config.json" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Scheduled task install/uninstall via custom actions -->
+    <CustomAction Id="CreateTask" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no"
+      ExeCommand='schtasks /Create /F /SC ONLOGON /RL HIGHEST /TN "ClassifyHubAgent" /TR "python \"[INSTALLFOLDER]agent.py\" --daemon"' />
+    <CustomAction Id="DeleteTask" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no"
+      ExeCommand='schtasks /Delete /F /TN "ClassifyHubAgent"' Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="CreateTask" After="InstallFiles" Condition="NOT REMOVE" />
+      <Custom Action="DeleteTask" Before="RemoveFiles" Condition="REMOVE" />
+    </InstallExecuteSequence>
+
+    <Feature Id="Main">
+      <ComponentRef Id="AgentScript" />
+      <ComponentRef Id="AgentConfig" />
+    </Feature>
+  </Package>
+</Wix>

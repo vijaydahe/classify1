@@ -1,0 +1,50 @@
+name: Build endpoint agent installers
+
+# Native installers must be built on their target OS, which this Linux dev
+# environment can't do. This workflow builds them on GitHub's Windows and macOS
+# runners. Artifacts are unsigned by default — add signing secrets and the
+# documented signing steps for production-ready, distributable installers.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["agent-v*"]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build EXE (Inno Setup)
+        run: |
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            /DAgentDir=..\.. agent\installers\windows\classifyhub-agent.iss
+        shell: pwsh
+
+      - name: Build MSI (WiX v4)
+        run: |
+          dotnet tool install --global wix
+          wix build agent\installers\windows\classifyhub-agent.wxs -o ClassifyHubAgent.msi
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            agent/installers/windows/Output/ClassifyHubAgentSetup.exe
+            ClassifyHubAgent.msi
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build PKG
+        run: |
+          chmod +x agent/installers/macos/build_pkg.sh
+          ./agent/installers/macos/build_pkg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer
+          path: ClassifyHubAgent.pkg

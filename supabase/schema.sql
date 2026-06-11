@@ -121,6 +121,17 @@ create table if not exists assets (
     classified_at   timestamptz not null default now()
 );
 
+create table if not exists watermark_config (
+    id                  serial primary key,
+    tenant_id           integer not null unique references tenants(id),
+    enabled             boolean not null default true,
+    opacity             double precision not null default 0.15,
+    font_size           integer not null default 18,
+    placement           varchar(20) not null default 'tiled',
+    show_timestamp      boolean not null default true,
+    show_classification boolean not null default true
+);
+
 create table if not exists api_keys (
     id         serial primary key,
     tenant_id  integer not null references tenants(id),
