@@ -89,9 +89,41 @@ function nav(view) {
 
 function render(html) { document.getElementById("view").innerHTML = html; }
 
+function donutSVG(items, centerLabel) {
+  const total = items.reduce((s, i) => s + (i.count || 0), 0);
+  if (!total) return '<div class="muted" style="padding:40px 20px;text-align:center">No data yet</div>';
+  const C = 2 * Math.PI * 80;
+  let off = 0, segs = "";
+  for (const i of items) {
+    if (!i.count) continue;
+    const len = (i.count / total) * C;
+    segs += `<circle cx="100" cy="100" r="80" fill="none" stroke="${esc(i.color)}" stroke-width="30"
+      stroke-dasharray="${len} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)"/>`;
+    off += len;
+  }
+  return `<svg width="200" height="200" viewBox="0 0 200 200" role="img">${segs}
+    <text x="100" y="95" text-anchor="middle" font-size="26" font-weight="800" style="fill:var(--text)" font-family="inherit">${total}</text>
+    <text x="100" y="116" text-anchor="middle" font-size="11" style="fill:var(--muted)" font-family="inherit">${esc(centerLabel)}</text>
+  </svg>`;
+}
+
+const PALETTE = ["#4f46e5", "#16a34a", "#d97706", "#dc2626", "#0ea5e9", "#a855f7"];
+
 const views = {
   async overview() {
-    const s = await api("/api/owner/stats");
+    const [s, tenants] = await Promise.all([api("/api/owner/stats"), api("/api/owner/tenants")]);
+    const byPlan = {};
+    tenants.forEach(t => { const k = t.plan || "No plan"; byPlan[k] = (byPlan[k] || 0) + 1; });
+    const planItems = Object.entries(byPlan).map(([name, count], i) =>
+      ({ name, count, color: PALETTE[i % PALETTE.length] }));
+    const statusItems = [
+      { name: "Active", count: s.active_tenants, color: "#16a34a" },
+      { name: "Suspended", count: s.tenants - s.active_tenants, color: "#dc2626" },
+    ];
+    const legend = items => items.map(i => `
+      <div class="bar-row"><span class="level-dot" style="width:12px;height:12px;border-radius:3px;background:${esc(i.color)};display:inline-block"></span>
+        <div class="name" style="width:auto">${esc(i.name)}</div>
+        <div style="margin-left:auto;font-weight:700">${i.count}</div></div>`).join("");
     render(`
       <h2>Platform overview</h2>
       <div class="cards">
@@ -100,6 +132,22 @@ const views = {
         <div class="card"><div class="num">${s.assets.toLocaleString()}</div><div class="lbl">Assets classified</div></div>
         <div class="card"><div class="num">${s.endpoints}</div><div class="lbl">Endpoints</div></div>
         <div class="card"><div class="num">$${s.revenue.toLocaleString()}</div><div class="lbl">Revenue (${s.payments} payments)</div></div>
+      </div>
+      <div class="row" style="align-items:stretch">
+        <div class="panel" style="flex:1;min-width:280px">
+          <h3>Tenants by plan</h3>
+          <div class="donut-flex">
+            <div>${donutSVG(planItems, "tenants")}</div>
+            <div style="flex:1;min-width:140px">${legend(planItems)}</div>
+          </div>
+        </div>
+        <div class="panel" style="flex:1;min-width:280px">
+          <h3>Tenant status</h3>
+          <div class="donut-flex">
+            <div>${donutSVG(statusItems, "tenants")}</div>
+            <div style="flex:1;min-width:140px">${legend(statusItems)}</div>
+          </div>
+        </div>
       </div>
     `);
   },
