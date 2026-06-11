@@ -11,7 +11,11 @@ async function api(path, opts = {}) {
   if (TOKEN) headers["Authorization"] = "Bearer " + TOKEN;
   if (opts.body) { headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(opts.body); }
   const resp = await fetch(path, { ...opts, headers });
-  if (resp.status === 401) { logout(); throw new Error("Session expired"); }
+  // A 401 from the login endpoint means bad credentials, not an expired session.
+  if (resp.status === 401 && !path.startsWith("/api/auth/")) {
+    logout();
+    throw new Error("Session expired");
+  }
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}));
     throw new Error(body.detail || resp.statusText);
