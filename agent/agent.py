@@ -10,6 +10,10 @@ Usage:
     python3 agent.py            # enroll (first run), scan once, report
     python3 agent.py --daemon   # scan repeatedly at the configured interval
 """
+# Keep PEP 604 type hints (dict | None) working on the Python 3.8/3.9 that ships
+# with macOS — this defers annotation evaluation so they never run at import.
+from __future__ import annotations
+
 import argparse
 import json
 import platform
