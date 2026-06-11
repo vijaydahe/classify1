@@ -192,6 +192,14 @@ class SubscribeRequest(BaseModel):
     card_cvc: str = ""
 
 
+class ContactIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    company: str = ""
+    topic: str = "General question"
+    message: str = Field(min_length=1, max_length=5000)
+
+
 class GatewayConfigIn(BaseModel):
     provider: str = "stripe"
     mode: str = "test"

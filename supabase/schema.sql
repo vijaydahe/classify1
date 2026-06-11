@@ -121,6 +121,17 @@ create table if not exists assets (
     classified_at   timestamptz not null default now()
 );
 
+create table if not exists contact_messages (
+    id         serial primary key,
+    name       varchar(120) not null,
+    email      varchar(255) not null,
+    company    varchar(120) not null default '',
+    topic      varchar(60)  not null default 'General question',
+    message    text not null,
+    status     varchar(20)  not null default 'new',  -- new | replied
+    created_at timestamptz  not null default now()
+);
+
 create table if not exists audit_logs (
     id         serial primary key,
     tenant_id  integer references tenants(id),

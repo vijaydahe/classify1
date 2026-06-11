@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support — ClassifyHub</title>
+  <link rel="stylesheet" href="/static/landing.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="logo" href="/">Classify<span>Hub</span></a>
+    <div class="nav-links">
+      <a href="/#why">Why classify</a>
+      <a href="/#how">How it works</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/support">Support</a>
+      <a href="/contact">Contact</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost btn-sm" href="/app">Sign in</a>
+      <a class="btn btn-sm" href="/app">Start free</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" style="padding:64px 0 40px">
+  <div class="wrap">
+    <h1 style="font-size:clamp(28px,4vw,40px)">Support center</h1>
+    <p class="lede">Guides and answers for getting the most out of ClassifyHub.
+       Can't find what you need? <a href="/contact">Contact us</a> — we reply within one business day.</p>
+  </div>
+</header>
+
+<section style="padding-top:24px">
+  <div class="wrap">
+    <div class="sec-head"><h2>Getting started</h2></div>
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="story-num">1</div><h3>Create your workspace</h3>
+        <p>Go to <a href="/app">the app</a> and choose "Create an account". Your company becomes a
+           private workspace with the default classification scheme and rules already configured.
+           You are the workspace admin.</p>
+      </div>
+      <div class="card">
+        <div class="story-num">2</div><h3>Classify your first asset</h3>
+        <p>Open <strong>Classify</strong>, type a file name and paste its content, and press the button.
+           For bulk inventories, prepare a CSV with a <code>name</code> column (plus optional
+           <code>asset_type</code> and <code>content</code>) and upload it.</p>
+      </div>
+      <div class="card">
+        <div class="story-num">3</div><h3>Deploy endpoint agents</h3>
+        <p>In <strong>Endpoints &amp; Builds</strong>, generate a build for macOS or Windows and download
+           the zip. Run <code>install.sh</code> (macOS) or <code>install.ps1</code> (Windows) on each machine —
+           it enrolls automatically and starts reporting classified files.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head"><h2>Frequently asked questions</h2></div>
+    <div class="faq">
+      <details>
+        <summary>Do I need to install anything to use ClassifyHub?</summary>
+        <p>No. The web app covers manual and CSV classification entirely in the browser. The optional
+           endpoint agent is only needed if you want automatic scanning of files on your team's computers.</p>
+      </details>
+      <details>
+        <summary>How does the classification engine decide a label?</summary>
+        <p>Every rule is either a keyword list or a regular expression mapped to a label. When an asset
+           matches several rules, the label with the <strong>highest sensitivity level wins</strong> — so a document
+           containing both "press release" and a credit card number is Restricted, not Public.</p>
+      </details>
+      <details>
+        <summary>Can I change the labels to match our internal policy?</summary>
+        <p>Yes. Admins can rename, recolor, add or remove labels under <strong>Admin Console → Labels</strong>,
+           and every rule can be re-pointed to any label. Many companies add a fifth level such as "Top Secret"
+           or rename Internal to "Official Use Only".</p>
+      </details>
+      <details>
+        <summary>What do the endpoint agents actually scan?</summary>
+        <p>By default: the Documents, Desktop and Downloads folders of the signed-in user. The list is in the
+           agent's <code>config.json</code> and can be changed before or after install. Text-like files are
+           content-scanned (up to 64&nbsp;KB); other files are classified by name. Only the file path,
+           label, matched rule names and a 300-character excerpt are sent to the server.</p>
+      </details>
+      <details>
+        <summary>How does this help with ISO 27001 / SOC 2 / GDPR audits?</summary>
+        <p>Export your classified inventory as CSV (<strong>Assets → Export CSV</strong>) as evidence of an
+           information classification scheme (ISO 27001 control 5.12), show the dashboard for ongoing
+           monitoring, and use the audit log to demonstrate change control. For GDPR, filter assets matching
+           the PII rules to build your record of processing.</p>
+      </details>
+      <details>
+        <summary>What happens when I hit my plan limit?</summary>
+        <p>Nothing breaks — new classifications are simply paused until you upgrade or remove old assets.
+           Admins can upgrade in <strong>Admin Console → Billing</strong>; the new limits apply immediately.</p>
+      </details>
+      <details>
+        <summary>Is my data isolated from other companies?</summary>
+        <p>Yes. Every workspace is a separate tenant; all data — assets, rules, users, endpoints — is scoped
+           to your tenant at the database level. No other customer can see your data, and platform staff only
+           see aggregate counts.</p>
+      </details>
+      <details>
+        <summary>The agent says "cannot reach server" — what do I check?</summary>
+        <p>1) The machine has internet access. 2) <code>server_url</code> in <code>config.json</code> matches your
+           ClassifyHub URL. 3) Your workspace hasn't hit its endpoint limit. The agent log is at
+           <code>~/Library/Application Support/ClassifyHub/agent.log</code> on macOS, or run the agent manually
+           in a terminal on Windows to see live output.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap" style="text-align:center">
+    <h2 style="margin-bottom:12px">Still stuck?</h2>
+    <p style="margin-bottom:24px">Send us the details and we'll get you unblocked.</p>
+    <a class="btn btn-lg" href="/contact">Contact support</a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div><strong style="color:var(--ink)">Classify<span style="color:var(--accent)">Hub</span></strong> · Automatic data classification for SMEs</div>
+    <div class="foot-links">
+      <a href="/support">Support</a>
+      <a href="/contact">Contact</a>
+      <a href="/app">Sign in</a>
+      <a href="/docs">API</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

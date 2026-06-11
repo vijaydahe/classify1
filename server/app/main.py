@@ -1,13 +1,16 @@
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 
 from .config import APP_NAME, APP_VERSION
-from .database import Base, SessionLocal, engine
+from .database import Base, SessionLocal, engine, get_db
+from .models import ContactMessage
 from .routers import agent_api, assets, auth, billing, owner, tenant_admin
+from .schemas import ContactIn
 from .seed import seed_platform
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
@@ -31,13 +34,35 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/", include_in_schema=False)
-def index():
+def landing():
+    return FileResponse(STATIC_DIR / "landing.html")
+
+
+@app.get("/app", include_in_schema=False)
+def tenant_app():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/support", include_in_schema=False)
+def support_page():
+    return FileResponse(STATIC_DIR / "support.html")
+
+
+@app.get("/contact", include_in_schema=False)
+def contact_page():
+    return FileResponse(STATIC_DIR / "contact.html")
 
 
 @app.get("/owner", include_in_schema=False)
 def owner_console():
     return FileResponse(STATIC_DIR / "owner.html")
+
+
+@app.post("/api/contact", tags=["public"])
+def submit_contact(payload: ContactIn, db: Session = Depends(get_db)):
+    db.add(ContactMessage(**payload.model_dump()))
+    db.commit()
+    return {"ok": True}
 
 
 @app.get("/api/health", tags=["meta"])

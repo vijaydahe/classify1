@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact — ClassifyHub</title>
+  <link rel="stylesheet" href="/static/landing.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="logo" href="/">Classify<span>Hub</span></a>
+    <div class="nav-links">
+      <a href="/#why">Why classify</a>
+      <a href="/#how">How it works</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/support">Support</a>
+      <a href="/contact">Contact</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost btn-sm" href="/app">Sign in</a>
+      <a class="btn btn-sm" href="/app">Start free</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" style="padding:64px 0 32px">
+  <div class="wrap">
+    <h1 style="font-size:clamp(28px,4vw,40px)">Talk to us</h1>
+    <p class="lede">Questions about plans, a stuck deployment, or an Enterprise conversation —
+       drop a message and we'll reply within one business day.</p>
+  </div>
+</header>
+
+<section style="padding-top:16px">
+  <div class="wrap">
+    <div class="card form-card">
+      <div id="c-msg" class="form-msg"></div>
+      <label for="c-name">Your name</label>
+      <input id="c-name" placeholder="Jane Doe">
+      <label for="c-email">Work email</label>
+      <input id="c-email" type="email" placeholder="jane@company.com">
+      <label for="c-company">Company</label>
+      <input id="c-company" placeholder="Acme Corp">
+      <label for="c-topic">Topic</label>
+      <select id="c-topic">
+        <option>General question</option>
+        <option>Support / something is broken</option>
+        <option>Sales / Enterprise plan</option>
+        <option>Partnership</option>
+        <option>Feedback</option>
+      </select>
+      <label for="c-message">Message</label>
+      <textarea id="c-message" rows="6" placeholder="How can we help?"></textarea>
+      <button class="btn" style="width:100%" onclick="sendContact()">Send message</button>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:14px;text-align:center">
+        We only use these details to reply to you. Nothing is shared or added to mailing lists.</p>
+    </div>
+  </div>
+</section>
+
+<footer style="margin-top:48px">
+  <div class="wrap foot">
+    <div><strong style="color:var(--ink)">Classify<span style="color:var(--accent)">Hub</span></strong> · Automatic data classification for SMEs</div>
+    <div class="foot-links">
+      <a href="/support">Support</a>
+      <a href="/contact">Contact</a>
+      <a href="/app">Sign in</a>
+      <a href="/docs">API</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+async function sendContact() {
+  const box = document.getElementById("c-msg");
+  const payload = {
+    name: document.getElementById("c-name").value.trim(),
+    email: document.getElementById("c-email").value.trim(),
+    company: document.getElementById("c-company").value.trim(),
+    topic: document.getElementById("c-topic").value,
+    message: document.getElementById("c-message").value.trim(),
+  };
+  if (!payload.name || !payload.email || !payload.message) {
+    box.className = "form-msg err";
+    box.textContent = "Please fill in your name, email and message.";
+    return;
+  }
+  try {
+    const resp = await fetch("/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(typeof body.detail === "string" ? body.detail : "Could not send your message.");
+    }
+    box.className = "form-msg ok";
+    box.textContent = "Thanks! Your message has been received — we'll reply within one business day.";
+    ["c-name", "c-email", "c-company", "c-message"].forEach(id => document.getElementById(id).value = "");
+  } catch (e) {
+    box.className = "form-msg err";
+    box.textContent = e.message;
+  }
+}
+</script>
+</body>
+</html>

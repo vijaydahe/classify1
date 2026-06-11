@@ -172,6 +172,19 @@ class PaymentGatewayConfig(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class ContactMessage(Base):
+    __tablename__ = "contact_messages"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(120), nullable=False)
+    email = Column(String(255), nullable=False)
+    company = Column(String(120), default="")
+    topic = Column(String(60), default="General question")
+    message = Column(Text, nullable=False)
+    status = Column(String(20), default="new")  # new | replied
+    created_at = Column(DateTime, default=utcnow)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

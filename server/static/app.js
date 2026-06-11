@@ -12,6 +12,17 @@ function esc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* ---------- Theme (light is the default) ---------- */
+function applyTheme() {
+  document.body.classList.toggle("light", (localStorage.getItem("ch_theme") || "light") === "light");
+}
+function toggleTheme() {
+  const next = (localStorage.getItem("ch_theme") || "light") === "light" ? "dark" : "light";
+  localStorage.setItem("ch_theme", next);
+  applyTheme();
+}
+applyTheme();
+
 async function api(path, opts = {}) {
   const headers = opts.headers || {};
   if (S.token) headers["Authorization"] = "Bearer " + S.token;
