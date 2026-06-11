@@ -222,12 +222,40 @@ def download_build(build_id: int, request: Request,
             zf.write(AGENT_DIR / "installers" / "install_macos.sh", "classifyhub-agent/install.sh")
         else:
             zf.write(AGENT_DIR / "installers" / "install_windows.ps1", "classifyhub-agent/install.ps1")
-        zf.writestr("classifyhub-agent/README.txt",
-                    f"ClassifyHub endpoint agent ({build.platform}) v{build.version}\n\n"
-                    "macOS:   bash install.sh\n"
-                    "Windows: powershell -ExecutionPolicy Bypass -File install.ps1\n\n"
-                    "The agent enrolls with your tenant on first run, then scans the\n"
-                    "configured paths and reports classified assets to the server.\n")
+        readme = (
+            f"ClassifyHub endpoint agent ({build.platform}) v{build.version}\n"
+            f"{'=' * 48}\n\n"
+        )
+        if build.platform == "macos":
+            readme += (
+                "INSTALL (macOS)\n"
+                "---------------\n"
+                "macOS quarantines files downloaded from the internet, so first clear\n"
+                "the quarantine flag on this unzipped folder, then run the installer:\n\n"
+                "  xattr -dr com.apple.quarantine \"<this folder>\"\n"
+                "  bash install.sh\n\n"
+                "If you skip the first line you'll see \"cannot verify it is free of\n"
+                "malware\" — that only means the agent isn't Apple-notarized yet, not\n"
+                "that anything is wrong. (Alternatively: System Settings > Privacy &\n"
+                "Security > Open Anyway.)\n\n"
+                "Requires python3 (preinstalled, or from the Xcode Command Line Tools).\n"
+            )
+        else:
+            readme += (
+                "INSTALL (Windows)\n"
+                "-----------------\n"
+                "Right-click install.ps1 > Properties > tick \"Unblock\", or run:\n\n"
+                "  powershell -ExecutionPolicy Bypass -File install.ps1\n\n"
+                "SmartScreen may warn because the script isn't code-signed yet; choose\n"
+                "\"More info\" > \"Run anyway\". Requires Python 3 (python.org).\n"
+            )
+        readme += (
+            "\nThe agent enrolls with your workspace on first run, then scans the\n"
+            "configured paths and reports classified assets back to the server.\n"
+            "For signed, fleet-managed deployment see the MSI/PKG installers and\n"
+            "MANAGED_DEPLOYMENT guide in the ClassifyHub repository.\n"
+        )
+        zf.writestr("classifyhub-agent/README.txt", readme)
 
     build.downloads += 1
     db.commit()
