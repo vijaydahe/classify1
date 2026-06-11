@@ -116,6 +116,8 @@ function boot() {
   if (!S.token) {
     document.getElementById("auth").classList.remove("hidden");
     document.getElementById("app").classList.add("hidden");
+    // /app#register deep-links straight to the signup form (used by "Start free" CTAs)
+    if (location.hash === "#register") showRegister();
     return;
   }
   document.getElementById("auth").classList.add("hidden");
@@ -593,5 +595,9 @@ async function confirmPlan() {
     flash("Subscription updated"); nav("billing");
   } catch (e) { flash(e.message, "err"); }
 }
+
+window.addEventListener("hashchange", () => {
+  if (!S.token && location.hash === "#register") showRegister();
+});
 
 boot();
