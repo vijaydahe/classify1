@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Guide — ClassifyHub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/landing.css?v=1.2.0">
+  <style>
+    pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 18px 20px;
+          font-size: 13px; overflow-x: auto; line-height: 1.6; margin: 14px 0;
+          font-family: ui-monospace, Menlo, Consolas, monospace; }
+    pre .c { color: #64748b; }
+    .api-table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 14px 0; }
+    .api-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border);
+                    color: var(--ink); font-size: 13px; }
+    .api-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .api-table code { background: var(--bg-alt); padding: 1px 7px; border-radius: 5px; font-size: 12.5px; }
+    .method { display: inline-block; font-weight: 700; font-size: 11px; padding: 2px 9px;
+              border-radius: 5px; color: #fff; letter-spacing: .04em; }
+    .m-get { background: var(--green); } .m-post { background: var(--blue); }
+    .doc-section { max-width: 860px; margin: 0 auto; }
+    .doc-section h2 { font-size: 24px; margin: 44px 0 14px; }
+    .doc-section h3 { font-size: 17px; margin: 26px 0 10px; }
+    .doc-section p, .doc-section li { font-size: 15px; }
+    .doc-section ul, .doc-section ol { padding-left: 22px; margin: 10px 0; }
+    .callout { border-left: 4px solid var(--accent); background: var(--accent-soft);
+               border-radius: 0 10px 10px 0; padding: 14px 18px; font-size: 14px; margin: 16px 0; }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <a class="logo" href="/">Classify<span>Hub</span></a>
+    <div class="nav-links">
+      <a href="/#why">Why classify</a>
+      <a href="/#how">How it works</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/support">Support</a>
+      <a href="/contact">Contact</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost btn-sm" href="/app">Sign in</a>
+      <a class="btn btn-sm" href="/app#register">Start free</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" style="padding:64px 0 32px">
+  <div class="wrap">
+    <div class="eyebrow">Pro &amp; Enterprise plans</div>
+    <h1 style="font-size:clamp(28px,4vw,40px)">ClassifyHub API guide</h1>
+    <p class="lede">Classify assets and read your inventory from your own systems —
+       ticketing tools, DLP pipelines, CI jobs, internal portals.</p>
+  </div>
+</header>
+
+<section style="padding-top:8px">
+  <div class="wrap doc-section">
+
+    <h2>1. Get an API key</h2>
+    <ol>
+      <li>Sign in to <a href="/app">your workspace</a> as an <strong>admin</strong>.</li>
+      <li>Make sure your workspace is on a <strong>paid plan</strong> (Pro or Enterprise) — keys are
+          created freely but only authenticate while a paid subscription is active. Upgrade under
+          <em>Admin Console → Billing</em>.</li>
+      <li>Open <em>Admin Console → API Access</em>, name your key after the integration
+          (e.g. <code>jira-sync</code>) and click <strong>Create key</strong>.</li>
+      <li>Copy the key immediately — it is shown <strong>only once</strong>. We store a hash, not the key.</li>
+    </ol>
+    <div class="callout">
+      <strong>Treat keys like passwords.</strong> Never embed them in browser code or mobile apps,
+      never commit them to git. Use one key per integration so you can revoke one without breaking the others.
+    </div>
+
+    <h2>2. Authenticate</h2>
+    <p>Send your key in the <code>X-API-Key</code> header on every request. All endpoints are scoped to
+       your workspace — you can only ever see your own data.</p>
+    <pre><span class="c"># Quick test — list your classification labels</span>
+curl https://YOUR-APP-URL/api/v1/labels \
+  -H "X-API-Key: chk_your_key_here"</pre>
+
+    <h2>3. Endpoints</h2>
+    <table class="api-table">
+      <tr><th style="width:90px">Method</th><th style="width:220px">Path</th><th>What it does</th></tr>
+      <tr><td><span class="method m-post">POST</span></td><td><code>/api/v1/classify</code></td>
+          <td>Classify one asset and store it in your inventory. Body: <code>name</code> (required),
+              <code>asset_type</code>, <code>content</code>. Returns the label and matched rules.</td></tr>
+      <tr><td><span class="method m-get">GET</span></td><td><code>/api/v1/assets</code></td>
+          <td>List classified assets, newest first. Query params: <code>q</code> (name contains),
+              <code>source</code> (manual | csv | agent | api), <code>limit</code> (max 500).</td></tr>
+      <tr><td><span class="method m-get">GET</span></td><td><code>/api/v1/labels</code></td>
+          <td>Your label scheme with sensitivity levels and colors.</td></tr>
+      <tr><td><span class="method m-get">GET</span></td><td><code>/api/v1/rules</code></td>
+          <td>Your enabled detection rules in priority order — useful for classifying locally.</td></tr>
+    </table>
+
+    <h3>Example: classify a document</h3>
+    <pre>curl -X POST https://YOUR-APP-URL/api/v1/classify \
+  -H "X-API-Key: chk_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "vendor-contract-2026.pdf",
+    "asset_type": "document",
+    "content": "Confidential — NDA. Payment to IBAN DE89370400440532013000"
+  }'</pre>
+    <pre><span class="c"># Response</span>
+{
+  "id": 1042,
+  "name": "vendor-contract-2026.pdf",
+  "label": { "name": "Confidential", "level": 2, "color": "#f59e0b" },
+  "matched_rules": "Marked confidential, Financial data",
+  "source": "api",
+  "classified_at": "2026-06-12T08:30:00"
+}</pre>
+
+    <h3>Example: Python</h3>
+    <pre>import requests
+
+API = "https://YOUR-APP-URL/api/v1"
+HEADERS = {"X-API-Key": "chk_your_key_here"}
+
+r = requests.post(f"{API}/classify", headers=HEADERS, json={
+    "name": "export-customers.csv",
+    "content": open("export-customers.csv").read()[:64000],
+})
+print(r.json()["label"]["name"])</pre>
+
+    <h2>4. Errors</h2>
+    <table class="api-table">
+      <tr><th style="width:90px">Status</th><th>Meaning</th></tr>
+      <tr><td><code>401</code></td><td>Missing, invalid or revoked API key.</td></tr>
+      <tr><td><code>402</code></td><td>Your workspace is not on an active paid plan, or an asset/plan quota
+          was reached. The response <code>detail</code> says which.</td></tr>
+      <tr><td><code>403</code></td><td>Workspace suspended — contact support.</td></tr>
+      <tr><td><code>422</code></td><td>Request body failed validation; <code>detail</code> lists the fields.</td></tr>
+    </table>
+
+    <h2>5. Good practices</h2>
+    <ul>
+      <li><strong>One key per integration</strong> — revoke compromised or retired integrations individually
+          from <em>Admin Console → API Access</em>.</li>
+      <li><strong>Rotate keys periodically</strong> — create a new key, switch your integration, revoke the old one.
+          Zero downtime.</li>
+      <li><strong>Send content, not just names</strong> — classification accuracy is far higher with the first
+          ~64&nbsp;KB of content included.</li>
+      <li><strong>Batch politely</strong> — for large backfills, send requests sequentially or a few in parallel;
+          asset quotas from your plan apply to API-created assets too.</li>
+      <li><strong>Downgrades</strong> — if your subscription lapses to Free, keys stop authenticating (HTTP 402)
+          but are not deleted; they resume on upgrade.</li>
+    </ul>
+
+    <p style="margin:36px 0 8px">Full interactive reference (request/response schemas, try-it-out):
+       <a href="/docs">/docs</a>. Questions? <a href="/contact">Contact us</a>.</p>
+  </div>
+</section>
+
+<footer style="margin-top:48px">
+  <div class="wrap foot">
+    <div><strong style="color:var(--ink)">Classify<span style="color:var(--accent)">Hub</span></strong> · Automatic data classification for SMEs</div>
+    <div class="foot-links">
+      <a href="/support">Support</a>
+      <a href="/contact">Contact</a>
+      <a href="/app">Sign in</a>
+      <a href="/api-docs">API</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

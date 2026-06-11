@@ -121,6 +121,20 @@ create table if not exists assets (
     classified_at   timestamptz not null default now()
 );
 
+create table if not exists api_keys (
+    id         serial primary key,
+    tenant_id  integer not null references tenants(id),
+    name       varchar(120) not null,
+    key_prefix varchar(20)  not null,
+    key_hash   varchar(64)  not null unique,
+    created_by integer references users(id),
+    created_at timestamptz  not null default now(),
+    last_used  timestamptz,
+    revoked    boolean      not null default false
+);
+
+create index if not exists ix_api_keys_tenant on api_keys(tenant_id);
+
 create table if not exists contact_messages (
     id         serial primary key,
     name       varchar(120) not null,

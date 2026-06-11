@@ -395,6 +395,64 @@ const views = {
     `);
   },
 
+  async apikeys() {
+    const sub = await api("/api/billing/subscription");
+    const paid = sub.plan && sub.plan.price_monthly > 0 && sub.status === "active";
+    if (!paid) {
+      render(`
+        <h2>API access</h2>
+        <div class="panel" style="max-width:560px">
+          <h3>🔒 API access is a paid-plan feature</h3>
+          <p class="muted" style="font-size:14px;margin-bottom:14px">
+            Connect ClassifyHub to your own systems — ticketing tools, DLP pipelines, CI jobs —
+            with workspace-scoped API keys. Available on the <strong>Pro</strong> and
+            <strong>Enterprise</strong> plans.</p>
+          <p class="muted" style="font-size:14px;margin-bottom:16px">
+            Read the <a href="/api-docs" target="_blank">API guide</a> to see what you could build.</p>
+          <button onclick="nav('billing')">Upgrade plan →</button>
+        </div>
+      `);
+      return;
+    }
+    const keys = await api("/api/admin/apikeys");
+    render(`
+      <h2>API access</h2>
+      <div id="new-key-box"></div>
+      <div class="panel">
+        <h3>Create API key</h3>
+        <p class="muted" style="font-size:13px;margin-bottom:12px">
+          Name the key after the integration that will use it. The full key is shown
+          <strong>once</strong> — store it in your secret manager. Full usage instructions:
+          <a href="/api-docs" target="_blank">API guide</a>.</p>
+        <div class="row">
+          <div><label>Key name</label><input id="k-name" placeholder="jira-sync"></div>
+          <button class="fixed" onclick="createApiKey()">Create key</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Your keys</h3>
+        <table>
+          <tr><th>Name</th><th>Key</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr>
+          ${keys.map(k => `<tr>
+            <td>${esc(k.name)}</td>
+            <td class="mono">${esc(k.key_prefix)}</td>
+            <td class="muted">${k.created_at.slice(0, 10)}</td>
+            <td class="muted">${k.last_used ? k.last_used.replace("T", " ").slice(0, 16) : "never"}</td>
+            <td><span class="badge ${k.revoked ? "pill-red" : "pill-green"}">${k.revoked ? "revoked" : "active"}</span></td>
+            <td>${k.revoked ? "" : `<button class="btn-sm btn-danger" onclick="revokeApiKey(${k.id})">Revoke</button>`}</td>
+          </tr>`).join("") || "<tr><td colspan=6 class='muted'>No keys yet</td></tr>"}
+        </table>
+      </div>
+      <div class="panel">
+        <h3>Quick start</h3>
+        <pre class="mono" style="background:var(--bg);padding:14px;border-radius:8px;overflow-x:auto;font-size:12px">curl -X POST ${location.origin}/api/v1/classify \\
+  -H "X-API-Key: chk_your_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name": "contract.pdf", "content": "Confidential — NDA"}'</pre>
+      </div>
+    `);
+  },
+
   async billing() {
     const [plans, sub, payments] = await Promise.all([
       api("/api/billing/plans"), api("/api/billing/subscription"), api("/api/billing/payments")]);
@@ -611,6 +669,44 @@ async function downloadBuild(id) {
   a.download = (resp.headers.get("content-disposition") || "").split("filename=")[1] || "agent.zip";
   a.click();
   nav("endpoints");
+}
+
+async function createApiKey() {
+  try {
+    const k = await api("/api/admin/apikeys", {
+      method: "POST",
+      body: { name: document.getElementById("k-name").value.trim() },
+    });
+    document.getElementById("new-key-box").innerHTML = `
+      <div class="panel" style="border-color:var(--green)">
+        <h3>✅ Key created — copy it now, it won't be shown again</h3>
+        <div class="row">
+          <input class="mono" id="full-key" readonly value="${esc(k.key)}">
+          <button class="fixed btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('full-key').value).then(()=>flash('Key copied to clipboard'))">Copy</button>
+        </div>
+      </div>`;
+    const keysPanel = document.querySelectorAll("#view .panel")[2];
+    if (keysPanel) {
+      const fresh = await api("/api/admin/apikeys");
+      keysPanel.querySelector("table").outerHTML = `<table>
+        <tr><th>Name</th><th>Key</th><th>Created</th><th>Last used</th><th>Status</th><th></th></tr>
+        ${fresh.map(x => `<tr>
+          <td>${esc(x.name)}</td><td class="mono">${esc(x.key_prefix)}</td>
+          <td class="muted">${x.created_at.slice(0, 10)}</td>
+          <td class="muted">${x.last_used ? x.last_used.replace("T", " ").slice(0, 16) : "never"}</td>
+          <td><span class="badge ${x.revoked ? "pill-red" : "pill-green"}">${x.revoked ? "revoked" : "active"}</span></td>
+          <td>${x.revoked ? "" : `<button class="btn-sm btn-danger" onclick="revokeApiKey(${x.id})">Revoke</button>`}</td>
+        </tr>`).join("")}</table>`;
+    }
+  } catch (e) { flash(e.message, "err"); }
+}
+
+async function revokeApiKey(id) {
+  if (!confirm("Revoke this key? Integrations using it will stop working immediately.")) return;
+  try {
+    await api(`/api/admin/apikeys/${id}/revoke`, { method: "PATCH" });
+    nav("apikeys");
+  } catch (e) { flash(e.message, "err"); }
 }
 
 let pendingPlan = null;

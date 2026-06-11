@@ -1,5 +1,7 @@
+import hashlib
 import io
 import json
+import secrets
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -12,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..config import APP_VERSION
 from ..database import get_db
 from ..models import (
-    AgentBuild, Asset, AuditLog, ClassificationLabel, ClassificationRule,
+    AgentBuild, ApiKey, Asset, AuditLog, ClassificationLabel, ClassificationRule,
     Endpoint, Subscription, User,
 )
 from ..schemas import (
@@ -238,6 +240,70 @@ def download_build(build_id: int, request: Request,
 def list_endpoints(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
     return (db.query(Endpoint).filter(Endpoint.tenant_id == user.tenant_id)
             .order_by(Endpoint.enrolled_at.desc()).all())
+
+
+# ---------- API keys (paid plans only) ----------
+MAX_API_KEYS = 10
+
+
+def require_paid_plan(db: Session, tenant_id: int) -> None:
+    sub = db.query(Subscription).filter(Subscription.tenant_id == tenant_id).first()
+    if not sub or sub.status != "active" or sub.plan.price_monthly <= 0:
+        raise HTTPException(402, "API access requires an active paid plan (Pro or Enterprise). "
+                                 "Upgrade under Admin Console → Billing.")
+
+
+@router.get("/apikeys")
+def list_api_keys(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    keys = (db.query(ApiKey).filter(ApiKey.tenant_id == user.tenant_id)
+            .order_by(ApiKey.created_at.desc()).all())
+    return [{
+        "id": k.id, "name": k.name, "key_prefix": k.key_prefix,
+        "created_at": k.created_at.isoformat(),
+        "last_used": k.last_used.isoformat() if k.last_used else None,
+        "revoked": k.revoked,
+    } for k in keys]
+
+
+@router.post("/apikeys")
+def create_api_key(payload: dict, user: User = Depends(require_tenant_admin),
+                   db: Session = Depends(get_db)):
+    require_paid_plan(db, user.tenant_id)
+    name = str(payload.get("name", "")).strip() or "Integration key"
+    active = (db.query(ApiKey)
+              .filter(ApiKey.tenant_id == user.tenant_id, ApiKey.revoked.is_(False)).count())
+    if active >= MAX_API_KEYS:
+        raise HTTPException(400, f"Limit of {MAX_API_KEYS} active keys reached. Revoke unused keys first.")
+
+    full_key = f"chk_{secrets.token_urlsafe(32)}"
+    key = ApiKey(
+        tenant_id=user.tenant_id, name=name[:120],
+        key_prefix=full_key[:12] + "…",
+        key_hash=hashlib.sha256(full_key.encode()).hexdigest(),
+        created_by=user.id,
+    )
+    db.add(key)
+    db.add(AuditLog(tenant_id=user.tenant_id, user_id=user.id,
+                    action="apikey.created", detail=name))
+    db.commit()
+    db.refresh(key)
+    # The full key is returned exactly once; only its hash is stored.
+    return {"id": key.id, "name": key.name, "key": full_key, "key_prefix": key.key_prefix,
+            "created_at": key.created_at.isoformat()}
+
+
+@router.patch("/apikeys/{key_id}/revoke")
+def revoke_api_key(key_id: int, user: User = Depends(require_tenant_admin),
+                   db: Session = Depends(get_db)):
+    key = (db.query(ApiKey)
+           .filter(ApiKey.id == key_id, ApiKey.tenant_id == user.tenant_id).first())
+    if not key:
+        raise HTTPException(404, "API key not found")
+    key.revoked = True
+    db.add(AuditLog(tenant_id=user.tenant_id, user_id=user.id,
+                    action="apikey.revoked", detail=key.name))
+    db.commit()
+    return {"id": key.id, "revoked": True}
 
 
 # ---------- Audit log ----------
