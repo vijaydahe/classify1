@@ -12,7 +12,7 @@ from . import metrics
 from .config import APP_NAME, APP_VERSION
 from .database import Base, SessionLocal, engine, get_db
 from .models import ContactMessage
-from .routers import agent_api, assets, auth, billing, owner, tenant_admin
+from .routers import agent_api, assets, auth, billing, owner, public_api, tenant_admin
 from .schemas import ContactIn
 from .seed import seed_platform
 
@@ -50,6 +50,7 @@ app.include_router(tenant_admin.router)
 app.include_router(agent_api.router)
 app.include_router(billing.router)
 app.include_router(owner.router)
+app.include_router(public_api.router)
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -73,6 +74,11 @@ def support_page():
 @app.get("/contact", include_in_schema=False)
 def contact_page():
     return FileResponse(STATIC_DIR / "contact.html")
+
+
+@app.get("/api-docs", include_in_schema=False)
+def api_docs_page():
+    return FileResponse(STATIC_DIR / "api-docs.html")
 
 
 @app.get("/owner", include_in_schema=False)

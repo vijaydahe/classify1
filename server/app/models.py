@@ -172,6 +172,20 @@ class PaymentGatewayConfig(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    name = Column(String(120), nullable=False)
+    key_prefix = Column(String(20), nullable=False)  # shown in lists; full key never stored
+    key_hash = Column(String(64), unique=True, nullable=False)  # sha256 of the full key
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    last_used = Column(DateTime, nullable=True)
+    revoked = Column(Boolean, default=False)
+
+
 class ContactMessage(Base):
     __tablename__ = "contact_messages"
 
