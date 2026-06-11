@@ -1,11 +1,14 @@
 import os
+import time
 from pathlib import Path
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
+from . import metrics
 from .config import APP_NAME, APP_VERSION
 from .database import Base, SessionLocal, engine, get_db
 from .models import ContactMessage
@@ -14,6 +17,24 @@ from .schemas import ContactIn
 from .seed import seed_platform
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+@app.middleware("http")
+async def perf_middleware(request: Request, call_next):
+    t0 = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - t0) * 1000
+    path = request.url.path
+    if path.startswith("/static"):
+        # Assets only change on deploy; let browsers and the CDN keep them.
+        response.headers["Cache-Control"] = "public, max-age=3600, stale-while-revalidate=86400"
+    elif path.startswith("/api"):
+        metrics.record(duration_ms, response.status_code >= 500)
+        response.headers["Server-Timing"] = f"app;dur={duration_ms:.0f}"
+    else:
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=3600"
+    return response
 
 # When the schema is managed externally (e.g. supabase/schema.sql), set
 # CLASSIFYHUB_SKIP_BOOTSTRAP=1 to avoid create_all/seed on every cold start.

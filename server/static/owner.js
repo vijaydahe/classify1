@@ -253,6 +253,58 @@ const views = {
     `);
   },
 
+  async infra() {
+    const d = await api("/api/owner/infra");
+    const pill = s => s === "good" ? "pill-green" : (s === "fair" ? "pill-amber" : "pill-red");
+    const sev = s => s === "ok" ? "pill-green" : (s === "medium" ? "pill-amber" : "pill-red");
+    render(`
+      <h2>Infrastructure &amp; capacity</h2>
+      <div class="cards">
+        ${d.checks.map(c => `
+          <div class="card">
+            <div class="num">${esc(c.value)}</div>
+            <div class="lbl">${esc(c.name)} <span class="badge ${pill(c.status)}">${esc(c.status)}</span></div>
+            <div class="lbl" style="margin-top:6px">${esc(c.hint)}</div>
+          </div>`).join("")}
+      </div>
+      <div class="panel">
+        <h3>Upgrade recommendations</h3>
+        <table>
+          <tr><th>Severity</th><th>Recommendation</th><th>Detail</th></tr>
+          ${d.recommendations.map(r => `<tr>
+            <td><span class="badge ${sev(r.severity)}">${esc(r.severity)}</span></td>
+            <td style="white-space:nowrap"><strong>${esc(r.title)}</strong></td>
+            <td>${esc(r.detail)}</td>
+          </tr>`).join("")}
+        </table>
+      </div>
+      <div class="row" style="align-items:stretch">
+        <div class="panel" style="flex:1;min-width:280px">
+          <h3>This app instance</h3>
+          <table>
+            <tr><td>Uptime</td><td>${d.instance.uptime_min} min</td></tr>
+            <tr><td>API requests served</td><td>${d.instance.requests}</td></tr>
+            <tr><td>Python</td><td class="mono">${esc(d.instance.python)}</td></tr>
+          </table>
+          <p class="muted" style="font-size:12px;margin-top:10px">
+            Serverless note: metrics cover the instance serving this request since its cold start.
+            Vercel scales instances automatically; the levers you control are function memory/region
+            (Vercel) and database compute (Supabase).</p>
+        </div>
+        <div class="panel" style="flex:1;min-width:280px">
+          <h3>Data volume</h3>
+          <table>
+            <tr><td>Tenants</td><td>${d.counts.tenants}</td></tr>
+            <tr><td>Users</td><td>${d.counts.users}</td></tr>
+            <tr><td>Assets</td><td>${d.counts.assets.toLocaleString()}</td></tr>
+            <tr><td>Endpoints</td><td>${d.counts.endpoints}</td></tr>
+          </table>
+        </div>
+      </div>
+      <button class="btn-ghost" onclick="nav('infra')">↻ Refresh measurements</button>
+    `);
+  },
+
   async gateway() {
     const g = await api("/api/owner/gateway");
     render(`

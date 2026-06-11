@@ -77,16 +77,31 @@ async function doLogin() {
 
 async function doRegister() {
   const msg = document.getElementById("reg-msg");
+  const email = document.getElementById("reg-email").value.trim();
   try {
-    const data = await api("/api/auth/register", {
+    await api("/api/auth/register", {
       method: "POST",
       body: {
         company_name: document.getElementById("reg-company").value.trim(),
         full_name: document.getElementById("reg-name").value.trim(),
-        email: document.getElementById("reg-email").value.trim(),
+        email,
         password: document.getElementById("reg-password").value,
       },
     });
+    // Registration done — hand the user to the login form to sign in themselves.
+    showLogin();
+    document.getElementById("login-email").value = email;
+    const authMsg = document.getElementById("auth-msg");
+    authMsg.className = "msg ok";
+    authMsg.textContent = "Account created! Sign in with your email and password.";
+    document.getElementById("login-password").focus();
+  } catch (e) { msg.className = "msg err"; msg.textContent = e.message; }
+}
+
+async function demoLogin() {
+  const msg = document.getElementById("auth-msg");
+  try {
+    const data = await api("/api/auth/demo", { method: "POST" });
     onAuth(data);
   } catch (e) { msg.className = "msg err"; msg.textContent = e.message; }
 }
@@ -116,8 +131,9 @@ function boot() {
   if (!S.token) {
     document.getElementById("auth").classList.remove("hidden");
     document.getElementById("app").classList.add("hidden");
-    // /app#register deep-links straight to the signup form (used by "Start free" CTAs)
+    // /app#register deep-links to signup; /app#demo opens the shared demo workspace
     if (location.hash === "#register") showRegister();
+    if (location.hash === "#demo") demoLogin();
     return;
   }
   document.getElementById("auth").classList.add("hidden");
