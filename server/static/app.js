@@ -138,6 +138,24 @@ function nav(view) {
 
 function render(html) { document.getElementById("view").innerHTML = html; }
 
+function donutSVG(items, centerLabel) {
+  const total = items.reduce((s, i) => s + (i.count || 0), 0);
+  if (!total) return '<div class="muted" style="padding:40px 20px;text-align:center">No data yet</div>';
+  const C = 2 * Math.PI * 80;
+  let off = 0, segs = "";
+  for (const i of items) {
+    if (!i.count) continue;
+    const len = (i.count / total) * C;
+    segs += `<circle cx="100" cy="100" r="80" fill="none" stroke="${esc(i.color)}" stroke-width="30"
+      stroke-dasharray="${len} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 100 100)"/>`;
+    off += len;
+  }
+  return `<svg width="200" height="200" viewBox="0 0 200 200" role="img">${segs}
+    <text x="100" y="95" text-anchor="middle" font-size="26" font-weight="800" style="fill:var(--text)" font-family="inherit">${total}</text>
+    <text x="100" y="116" text-anchor="middle" font-size="11" style="fill:var(--muted)" font-family="inherit">${esc(centerLabel)}</text>
+  </svg>`;
+}
+
 async function loadLabels() {
   if (S.role === "admin") S.labels = await api("/api/admin/labels");
   return S.labels;
@@ -161,12 +179,17 @@ const views = {
       </div>
       <div class="panel">
         <h3>Assets by classification</h3>
-        ${d.by_label.map(l => `
-          <div class="bar-row">
-            <div class="name">${esc(l.name)}</div>
-            <div class="bar-track"><div class="bar-fill" style="width:${(l.count / maxCount) * 100}%;background:${esc(l.color)}"></div></div>
-            <div style="width:40px;text-align:right">${l.count}</div>
-          </div>`).join("")}
+        <div class="donut-flex">
+          <div>${donutSVG(d.by_label, "assets")}</div>
+          <div style="flex:1;min-width:240px">
+            ${d.by_label.map(l => `
+              <div class="bar-row">
+                <div class="name">${esc(l.name)}</div>
+                <div class="bar-track"><div class="bar-fill" style="width:${(l.count / maxCount) * 100}%;background:${esc(l.color)}"></div></div>
+                <div style="width:40px;text-align:right">${l.count}</div>
+              </div>`).join("")}
+          </div>
+        </div>
       </div>
       ${d.plan_limits ? `<div class="panel"><h3>Plan limits</h3>
         <span class="badge badge-outline">Users: ${d.users}/${d.plan_limits.max_users}</span>
