@@ -33,7 +33,8 @@ async def perf_middleware(request: Request, call_next):
         metrics.record(duration_ms, response.status_code >= 500)
         response.headers["Server-Timing"] = f"app;dur={duration_ms:.0f}"
     else:
-        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=3600"
+        # Pages must pick up new deploys quickly; their assets are version-busted.
+        response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     return response
 
 # When the schema is managed externally (e.g. supabase/schema.sql), set
