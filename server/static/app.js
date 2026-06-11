@@ -123,8 +123,71 @@ function onAuth(data) {
 function logout() {
   ["ch_token", "ch_role", "ch_tenant", "ch_name"].forEach(k => localStorage.removeItem(k));
   S.token = null;
+  WM.cfg = null; renderWatermark();
   location.reload();
 }
+
+/* ---------- Screen watermark ---------- */
+const WM = { identity: "", cfg: null, label: "" };
+
+function setWatermarkLabel(label) {
+  WM.label = label || "";
+  renderWatermark();
+}
+
+function watermarkText() {
+  const parts = [WM.identity];
+  if (WM.cfg && WM.cfg.show_classification && WM.label) parts.push(WM.label);
+  if (WM.cfg && WM.cfg.show_timestamp) {
+    const d = new Date();
+    parts.push(d.toISOString().slice(0, 16).replace("T", " "));
+  }
+  return parts.filter(Boolean).join("  ·  ");
+}
+
+function renderWatermark() {
+  const el = document.getElementById("watermark");
+  if (!el) return;
+  const c = WM.cfg;
+  if (!c || !c.enabled || !S.token) { el.className = ""; el.innerHTML = ""; return; }
+  const text = esc(watermarkText());
+  el.style.opacity = c.opacity;
+  el.style.fontSize = c.font_size + "px";
+  if (c.placement === "tiled") {
+    const stepX = Math.max(220, c.font_size * 16);
+    const stepY = Math.max(120, c.font_size * 6);
+    let tiles = "";
+    for (let y = -40; y < window.innerHeight + 80; y += stepY)
+      for (let x = -80; x < window.innerWidth + 80; x += stepX)
+        tiles += `<span class="wm-tile" style="left:${x}px;top:${y}px">${text}</span>`;
+    el.innerHTML = tiles;
+  } else {
+    const pos = {
+      "center": "top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);text-align:center",
+      "top-left": "top:14px;left:16px", "top-right": "top:14px;right:16px",
+      "bottom-left": "bottom:14px;left:16px", "bottom-right": "bottom:14px;right:16px",
+    }[c.placement] || "top:50%;left:50%;transform:translate(-50%,-50%)";
+    el.innerHTML = `<span class="wm-fixed" style="${pos}">${text}</span>`;
+  }
+  el.className = "on";
+}
+
+async function loadWatermark() {
+  try {
+    const w = await api("/api/auth/watermark");
+    WM.identity = w.identity;
+    WM.cfg = w.config;
+    renderWatermark();
+  } catch (e) { /* non-fatal */ }
+}
+
+let _wmResize;
+window.addEventListener("resize", () => {
+  clearTimeout(_wmResize);
+  _wmResize = setTimeout(renderWatermark, 200);
+});
+// Refresh the timestamp every minute so a screenshot always shows the access time.
+setInterval(() => { if (WM.cfg && WM.cfg.show_timestamp) renderWatermark(); }, 60000);
 
 /* ---------- Shell ---------- */
 function boot() {
@@ -143,12 +206,16 @@ function boot() {
   if (S.role === "admin") document.getElementById("admin-nav").classList.remove("hidden");
   document.querySelectorAll(".nav-item").forEach(btn =>
     btn.onclick = () => nav(btn.dataset.view));
+  loadWatermark();
   nav(S.role === "admin" ? "dashboard" : "classify");
 }
 
 function nav(view) {
   document.querySelectorAll(".nav-item").forEach(b =>
     b.classList.toggle("active", b.dataset.view === view));
+  // Default watermark context per screen; classify results refine it further.
+  setWatermarkLabel({ assets: "Asset Inventory", dashboard: "Dashboard",
+    classify: "Classifying" }[view] || "");
   views[view]().catch(e => flash(e.message, "err"));
 }
 
@@ -453,6 +520,53 @@ const views = {
     `);
   },
 
+  async watermark() {
+    const c = await api("/api/admin/watermark");
+    const opts = ["tiled", "center", "top-left", "top-right", "bottom-left", "bottom-right"];
+    render(`
+      <h2>Screen watermark</h2>
+      <div class="panel" style="max-width:620px">
+        <p class="muted" style="font-size:13.5px;margin-bottom:16px">
+          Overlays every workspace screen with the viewer's name, the asset classification and a
+          timestamp — deterring and attributing screenshots of sensitive data. Applies to all users
+          in your workspace the next time they load the app.</p>
+        <div class="slider-row">
+          <label>Enabled</label>
+          <input type="checkbox" id="wm-enabled" ${c.enabled ? "checked" : ""} style="width:auto;flex:0">
+          <span class="val"></span>
+        </div>
+        <div class="slider-row">
+          <label>Opacity</label>
+          <input type="range" id="wm-opacity" min="0.03" max="0.6" step="0.01" value="${c.opacity}">
+          <span class="val" id="wm-opacity-v">${c.opacity}</span>
+        </div>
+        <div class="slider-row">
+          <label>Text size</label>
+          <input type="range" id="wm-size" min="10" max="48" step="1" value="${c.font_size}">
+          <span class="val" id="wm-size-v">${c.font_size}px</span>
+        </div>
+        <label>Placement</label>
+        <select id="wm-placement">
+          ${opts.map(o => `<option value="${o}" ${c.placement === o ? "selected" : ""}>${o}</option>`).join("")}
+        </select>
+        <div class="slider-row">
+          <label>Show classification</label>
+          <input type="checkbox" id="wm-class" ${c.show_classification ? "checked" : ""} style="width:auto;flex:0">
+        </div>
+        <div class="slider-row">
+          <label>Show timestamp</label>
+          <input type="checkbox" id="wm-ts" ${c.show_timestamp ? "checked" : ""} style="width:auto;flex:0">
+        </div>
+        <label>Live preview</label>
+        <div class="wm-preview" id="wm-preview"></div>
+        <button style="margin-top:16px" onclick="saveWatermark()">Save watermark settings</button>
+      </div>
+    `);
+    ["wm-opacity", "wm-size", "wm-placement", "wm-enabled", "wm-class", "wm-ts"].forEach(id =>
+      document.getElementById(id).addEventListener("input", watermarkPreview));
+    watermarkPreview();
+  },
+
   async billing() {
     const [plans, sub, payments] = await Promise.all([
       api("/api/billing/plans"), api("/api/billing/subscription"), api("/api/billing/payments")]);
@@ -539,6 +653,7 @@ async function classifyNow() {
         content: document.getElementById("c-content").value,
       },
     });
+    setWatermarkLabel(a.label?.name || "Unclassified");
     document.getElementById("c-result").innerHTML = `
       <div class="panel" style="margin:0;background:var(--panel-2)">
         Result: <span class="badge" style="background:${esc(a.label?.color || "#6b7280")}">${esc(a.label?.name || "Unclassified")}</span>
@@ -669,6 +784,50 @@ async function downloadBuild(id) {
   a.download = (resp.headers.get("content-disposition") || "").split("filename=")[1] || "agent.zip";
   a.click();
   nav("endpoints");
+}
+
+function readWatermarkForm() {
+  return {
+    enabled: document.getElementById("wm-enabled").checked,
+    opacity: parseFloat(document.getElementById("wm-opacity").value),
+    font_size: parseInt(document.getElementById("wm-size").value),
+    placement: document.getElementById("wm-placement").value,
+    show_classification: document.getElementById("wm-class").checked,
+    show_timestamp: document.getElementById("wm-ts").checked,
+  };
+}
+
+function watermarkPreview() {
+  const c = readWatermarkForm();
+  document.getElementById("wm-opacity-v").textContent = c.opacity;
+  document.getElementById("wm-size-v").textContent = c.font_size + "px";
+  const box = document.getElementById("wm-preview");
+  const sample = [`${esc(S.name || "User")}`,
+    c.show_classification ? "Confidential" : "",
+    c.show_timestamp ? new Date().toISOString().slice(0, 16).replace("T", " ") : ""]
+    .filter(Boolean).join("  ·  ");
+  if (!c.enabled) { box.innerHTML = '<div class="muted" style="padding:80px 0;text-align:center">Watermark disabled</div>'; return; }
+  const color = document.body.classList.contains("light") ? "#0f172a" : "#e2e8f0";
+  let inner = "";
+  if (c.placement === "tiled") {
+    for (let y = -10; y < 200; y += Math.max(36, c.font_size * 2.4))
+      for (let x = -40; x < 600; x += Math.max(180, c.font_size * 11))
+        inner += `<span style="position:absolute;left:${x}px;top:${y}px;transform:rotate(-30deg);white-space:nowrap;font-weight:600">${sample}</span>`;
+  } else {
+    const pos = { center: "top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg)",
+      "top-left": "top:8px;left:10px", "top-right": "top:8px;right:10px",
+      "bottom-left": "bottom:8px;left:10px", "bottom-right": "bottom:8px;right:10px" }[c.placement];
+    inner = `<span style="position:absolute;${pos};white-space:nowrap;font-weight:600">${sample}</span>`;
+  }
+  box.innerHTML = `<div style="position:absolute;inset:0;opacity:${c.opacity};font-size:${c.font_size}px;color:${color}">${inner}</div>`;
+}
+
+async function saveWatermark() {
+  try {
+    const cfg = await api("/api/admin/watermark", { method: "PUT", body: readWatermarkForm() });
+    WM.cfg = cfg; renderWatermark();
+    flash("Watermark settings saved");
+  } catch (e) { flash(e.message, "err"); }
 }
 
 async function createApiKey() {

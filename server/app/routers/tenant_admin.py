@@ -15,11 +15,12 @@ from ..config import APP_VERSION
 from ..database import get_db
 from ..models import (
     AgentBuild, ApiKey, Asset, AuditLog, ClassificationLabel, ClassificationRule,
-    Endpoint, Subscription, User,
+    Endpoint, Subscription, User, WatermarkConfig,
 )
 from ..schemas import (
     BuildCreate, BuildOut, EndpointOut, LabelCreate, LabelOut,
     RuleCreate, RuleOut, RuleUpdate, UserCreate, UserOut,
+    WatermarkIn, WatermarkOut,
 )
 from ..deps import require_tenant_admin
 from ..security import hash_password
@@ -304,6 +305,40 @@ def revoke_api_key(key_id: int, user: User = Depends(require_tenant_admin),
                     action="apikey.revoked", detail=key.name))
     db.commit()
     return {"id": key.id, "revoked": True}
+
+
+# ---------- Screen watermark ----------
+PLACEMENTS = {"tiled", "center", "top-left", "top-right", "bottom-left", "bottom-right"}
+
+
+def _watermark_for(db: Session, tenant_id: int) -> WatermarkConfig:
+    cfg = db.query(WatermarkConfig).filter(WatermarkConfig.tenant_id == tenant_id).first()
+    if not cfg:
+        cfg = WatermarkConfig(tenant_id=tenant_id)
+        db.add(cfg)
+        db.commit()
+        db.refresh(cfg)
+    return cfg
+
+
+@router.get("/watermark", response_model=WatermarkOut)
+def get_watermark(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    return _watermark_for(db, user.tenant_id)
+
+
+@router.put("/watermark", response_model=WatermarkOut)
+def set_watermark(payload: WatermarkIn,
+                  user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    if payload.placement not in PLACEMENTS:
+        raise HTTPException(400, f"placement must be one of {sorted(PLACEMENTS)}")
+    cfg = _watermark_for(db, user.tenant_id)
+    for field, value in payload.model_dump().items():
+        setattr(cfg, field, value)
+    db.add(AuditLog(tenant_id=user.tenant_id, user_id=user.id, action="watermark.updated",
+                    detail=f"enabled={payload.enabled} placement={payload.placement}"))
+    db.commit()
+    db.refresh(cfg)
+    return cfg
 
 
 # ---------- Audit log ----------

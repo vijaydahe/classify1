@@ -192,6 +192,24 @@ class SubscribeRequest(BaseModel):
     card_cvc: str = ""
 
 
+class WatermarkOut(BaseModel):
+    enabled: bool
+    opacity: float
+    font_size: int
+    placement: str
+    show_timestamp: bool
+    show_classification: bool
+
+
+class WatermarkIn(BaseModel):
+    enabled: bool = True
+    opacity: float = Field(default=0.15, ge=0.03, le=0.6)
+    font_size: int = Field(default=18, ge=10, le=48)
+    placement: str = "tiled"
+    show_timestamp: bool = True
+    show_classification: bool = True
+
+
 class ContactIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     email: EmailStr

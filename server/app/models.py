@@ -172,6 +172,19 @@ class PaymentGatewayConfig(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class WatermarkConfig(Base):
+    __tablename__ = "watermark_config"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), unique=True, nullable=False)
+    enabled = Column(Boolean, default=True)
+    opacity = Column(Float, default=0.15)          # 0.05 - 0.5
+    font_size = Column(Integer, default=18)         # px, 10 - 48
+    placement = Column(String(20), default="tiled")  # tiled | center | top-left | top-right | bottom-left | bottom-right
+    show_timestamp = Column(Boolean, default=True)
+    show_classification = Column(Boolean, default=True)
+
+
 class ApiKey(Base):
     __tablename__ = "api_keys"
 

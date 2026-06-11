@@ -131,3 +131,24 @@ def demo_login(db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.get("/watermark")
+def my_watermark(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Watermark config for the current user's workspace, plus their display identity."""
+    from ..models import WatermarkConfig
+    cfg = None
+    if user.tenant_id is not None:
+        cfg = db.query(WatermarkConfig).filter(WatermarkConfig.tenant_id == user.tenant_id).first()
+    return {
+        "identity": user.full_name or user.email,
+        "email": user.email,
+        "config": {
+            "enabled": cfg.enabled if cfg else True,
+            "opacity": cfg.opacity if cfg else 0.15,
+            "font_size": cfg.font_size if cfg else 18,
+            "placement": cfg.placement if cfg else "tiled",
+            "show_timestamp": cfg.show_timestamp if cfg else True,
+            "show_classification": cfg.show_classification if cfg else True,
+        },
+    }
