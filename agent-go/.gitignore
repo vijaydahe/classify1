@@ -1,0 +1,4 @@
+dist/
+*.exe
+*.pkg
+*.msi
