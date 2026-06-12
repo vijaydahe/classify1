@@ -133,6 +133,29 @@ def me(user: User = Depends(get_current_user)):
     return user
 
 
+@router.get("/stamp-policy")
+def my_stamp_policy(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Stamping policy for the current user, including whether they're exempt."""
+    from ..models import StampPolicy
+    pol = None
+    if user.tenant_id is not None:
+        pol = db.query(StampPolicy).filter(StampPolicy.tenant_id == user.tenant_id).first()
+    exempt = False
+    if pol and pol.exempt_emails:
+        exempt_list = {e.strip().lower() for e in pol.exempt_emails.replace(",", "\n").split("\n") if e.strip()}
+        exempt = user.email.lower() in exempt_list
+    return {
+        "enabled": pol.enabled if pol else False,
+        "mandatory": (pol.mandatory if pol else False) and not exempt,
+        "exempt": exempt,
+        "placement": pol.placement if pol else "footer",
+        "font_name": pol.font_name if pol else "Arial",
+        "font_size": pol.font_size if pol else 10,
+        "color": pol.color if pol else "#dc2626",
+        "text_template": pol.text_template if pol else "CLASSIFICATION: {label}",
+    }
+
+
 @router.get("/watermark")
 def my_watermark(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Watermark config for the current user's workspace, plus their display identity."""

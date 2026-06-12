@@ -15,12 +15,12 @@ from ..config import APP_VERSION
 from ..database import get_db
 from ..models import (
     AgentBuild, ApiKey, Asset, AuditLog, ClassificationLabel, ClassificationRule,
-    Endpoint, Subscription, User, WatermarkConfig,
+    Endpoint, StampPolicy, Subscription, User, WatermarkConfig,
 )
 from ..schemas import (
     BuildCreate, BuildOut, EndpointOut, LabelCreate, LabelOut,
-    RuleCreate, RuleOut, RuleUpdate, UserCreate, UserOut,
-    WatermarkIn, WatermarkOut,
+    RuleCreate, RuleOut, RuleUpdate, StampPolicyIn, StampPolicyOut,
+    UserCreate, UserOut, WatermarkIn, WatermarkOut,
 )
 from ..deps import require_tenant_admin
 from ..security import hash_password
@@ -217,11 +217,15 @@ def download_build(build_id: int, request: Request,
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.write(AGENT_DIR / "agent.py", "classifyhub-agent/agent.py")
+        zf.write(AGENT_DIR / "stamp.py", "classifyhub-agent/stamp.py")
+        zf.write(AGENT_DIR / "installers" / "install_gui.py", "classifyhub-agent/install_gui.py")
         zf.writestr("classifyhub-agent/config.json", json.dumps(config, indent=2))
         if build.platform == "macos":
             zf.write(AGENT_DIR / "installers" / "install_macos.sh", "classifyhub-agent/install.sh")
         else:
             zf.write(AGENT_DIR / "installers" / "install_windows.ps1", "classifyhub-agent/install.ps1")
+            zf.write(AGENT_DIR / "installers" / "Install ClassifyHub.bat",
+                     "classifyhub-agent/Install ClassifyHub.bat")
         readme = (
             f"ClassifyHub endpoint agent ({build.platform}) v{build.version}\n"
             f"{'=' * 48}\n\n"
@@ -230,24 +234,28 @@ def download_build(build_id: int, request: Request,
             readme += (
                 "INSTALL (macOS)\n"
                 "---------------\n"
-                "macOS quarantines files downloaded from the internet, so first clear\n"
-                "the quarantine flag on this unzipped folder, then run the installer:\n\n"
-                "  xattr -dr com.apple.quarantine \"<this folder>\"\n"
-                "  bash install.sh\n\n"
-                "If you skip the first line you'll see \"cannot verify it is free of\n"
-                "malware\" — that only means the agent isn't Apple-notarized yet, not\n"
-                "that anything is wrong. (Alternatively: System Settings > Privacy &\n"
-                "Security > Open Anyway.)\n\n"
-                "Requires python3 (preinstalled, or from the Xcode Command Line Tools).\n"
+                "Easiest — graphical installer:\n"
+                "  1. Clear the internet-quarantine flag on this unzipped folder:\n"
+                "       xattr -dr com.apple.quarantine \"<this folder>\"\n"
+                "  2. Run the setup window:\n"
+                "       python3 install_gui.py\n\n"
+                "Command-line alternative:  bash install.sh\n\n"
+                "The \"cannot verify it is free of malware\" message just means the agent\n"
+                "isn't Apple-notarized yet (clear quarantine as above, or System Settings\n"
+                "> Privacy & Security > Open Anyway). Requires python3 (preinstalled or\n"
+                "from the Xcode Command Line Tools). The agent runs at every login.\n"
             )
         else:
             readme += (
                 "INSTALL (Windows)\n"
                 "-----------------\n"
-                "Right-click install.ps1 > Properties > tick \"Unblock\", or run:\n\n"
+                "Easiest — double-click \"Install ClassifyHub.bat\" for a setup window.\n\n"
+                "Command-line alternative (right-click > Run with PowerShell):\n"
                 "  powershell -ExecutionPolicy Bypass -File install.ps1\n\n"
-                "SmartScreen may warn because the script isn't code-signed yet; choose\n"
-                "\"More info\" > \"Run anyway\". Requires Python 3 (python.org).\n"
+                "If a window flashes and closes, Python isn't installed or on PATH:\n"
+                "install Python 3 from https://www.python.org/downloads/ and TICK\n"
+                "\"Add python.exe to PATH\". SmartScreen may warn (unsigned script) —\n"
+                "choose \"More info\" > \"Run anyway\". The agent runs at every login.\n"
             )
         readme += (
             "\nThe agent enrolls with your workspace on first run, then scans the\n"
@@ -367,6 +375,39 @@ def set_watermark(payload: WatermarkIn,
     db.commit()
     db.refresh(cfg)
     return cfg
+
+
+# ---------- Document stamping policy ----------
+def _stamp_for(db: Session, tenant_id: int) -> StampPolicy:
+    pol = db.query(StampPolicy).filter(StampPolicy.tenant_id == tenant_id).first()
+    if not pol:
+        pol = StampPolicy(tenant_id=tenant_id)
+        db.add(pol)
+        db.commit()
+        db.refresh(pol)
+    return pol
+
+
+@router.get("/stamp-policy", response_model=StampPolicyOut)
+def get_stamp_policy(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    return _stamp_for(db, user.tenant_id)
+
+
+@router.put("/stamp-policy", response_model=StampPolicyOut)
+def set_stamp_policy(payload: StampPolicyIn,
+                     user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    if payload.placement not in ("header", "footer"):
+        raise HTTPException(400, "placement must be 'header' or 'footer'")
+    if "{label}" not in payload.text_template:
+        raise HTTPException(400, "text_template must contain {label}")
+    pol = _stamp_for(db, user.tenant_id)
+    for field, value in payload.model_dump().items():
+        setattr(pol, field, value)
+    db.add(AuditLog(tenant_id=user.tenant_id, user_id=user.id, action="stamp_policy.updated",
+                    detail=f"enabled={payload.enabled} mandatory={payload.mandatory}"))
+    db.commit()
+    db.refresh(pol)
+    return pol
 
 
 # ---------- Audit log ----------

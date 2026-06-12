@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ClassifyHub Word add-in manifest.
+  Replace https://YOUR-APP-URL with your deployment, host taskpane.html/js there,
+  then deploy centrally via Microsoft 365 admin center > Integrated apps so end
+  users cannot remove it.
+-->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xsi:type="TaskPaneApp">
+  <Id>0e8d1f10-1c2a-4b7e-9a3d-classifyhub01</Id>
+  <Version>1.0.0</Version>
+  <ProviderName>ClassifyHub</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="ClassifyHub" />
+  <Description DefaultValue="Stamp document classification per your organization's policy." />
+  <Hosts>
+    <Host Name="Document" />
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://YOUR-APP-URL/office-addin/taskpane.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>

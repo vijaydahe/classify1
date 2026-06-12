@@ -172,6 +172,21 @@ class PaymentGatewayConfig(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class StampPolicy(Base):
+    __tablename__ = "stamp_policy"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), unique=True, nullable=False)
+    enabled = Column(Boolean, default=False)
+    mandatory = Column(Boolean, default=False)       # block save unless stamped
+    placement = Column(String(10), default="footer")  # header | footer
+    font_name = Column(String(60), default="Arial")
+    font_size = Column(Integer, default=10)
+    color = Column(String(20), default="#dc2626")
+    text_template = Column(String(120), default="CLASSIFICATION: {label}")
+    exempt_emails = Column(Text, default="")          # newline/comma separated, admin-granted
+
+
 class WatermarkConfig(Base):
     __tablename__ = "watermark_config"
 

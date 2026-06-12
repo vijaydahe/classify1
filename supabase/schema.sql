@@ -121,6 +121,19 @@ create table if not exists assets (
     classified_at   timestamptz not null default now()
 );
 
+create table if not exists stamp_policy (
+    id            serial primary key,
+    tenant_id     integer not null unique references tenants(id),
+    enabled       boolean not null default false,
+    mandatory     boolean not null default false,
+    placement     varchar(10) not null default 'footer',
+    font_name     varchar(60) not null default 'Arial',
+    font_size     integer not null default 10,
+    color         varchar(20) not null default '#dc2626',
+    text_template varchar(120) not null default 'CLASSIFICATION: {label}',
+    exempt_emails text not null default ''
+);
+
 create table if not exists watermark_config (
     id                  serial primary key,
     tenant_id           integer not null unique references tenants(id),
