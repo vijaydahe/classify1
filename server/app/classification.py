@@ -90,6 +90,49 @@ def classify_text(db: Session, tenant_id: int, name: str, content: str) -> tuple
     return fallback, []
 
 
+def load_matcher(db: Session, tenant_id: int):
+    """Loads a tenant's rules + fallback label once, for classifying many items in memory."""
+    rules = (
+        db.query(ClassificationRule)
+        .filter(ClassificationRule.tenant_id == tenant_id, ClassificationRule.enabled.is_(True))
+        .order_by(ClassificationRule.priority)
+        .all()
+    )
+    compiled = []
+    for r in rules:
+        compiled.append({
+            "name": r.name, "type": r.rule_type, "pattern": r.pattern,
+            "priority": r.priority, "label_id": r.label.id, "level": r.label.level,
+        })
+    fallback = (
+        db.query(ClassificationLabel)
+        .filter(ClassificationLabel.tenant_id == tenant_id)
+        .order_by(ClassificationLabel.level)
+        .first()
+    )
+    return compiled, (fallback.id if fallback else None)
+
+
+def match_rules(compiled: list[dict], fallback_label_id, name: str, content: str):
+    """In-memory classification — no DB. Returns (label_id, matched_rule_names)."""
+    text = f"{name}\n{content}"
+    lowered = text.lower()
+    matched = []
+    for rule in compiled:
+        if rule["type"] == "regex":
+            try:
+                if re.search(rule["pattern"], text):
+                    matched.append(rule)
+            except re.error:
+                continue
+        elif any(kw.strip().lower() in lowered for kw in rule["pattern"].split(",") if kw.strip()):
+            matched.append(rule)
+    if matched:
+        winner = max(matched, key=lambda r: (r["level"], -r["priority"]))
+        return winner["label_id"], [r["name"] for r in matched]
+    return fallback_label_id, []
+
+
 def export_rules(db: Session, tenant_id: int) -> list[dict]:
     """Serializes rules + labels for endpoint agents to classify locally."""
     rules = (

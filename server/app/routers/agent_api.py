@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ..classification import classify_text, export_rules
+from ..classification import export_rules, load_matcher, match_rules
 from ..database import get_db
 from ..deps import get_agent_endpoint
 from ..models import AgentBuild, Asset, AuditLog, ClassificationLabel, Endpoint, Subscription, Tenant
@@ -46,25 +46,36 @@ def get_rules(endpoint: Endpoint = Depends(get_agent_endpoint), db: Session = De
 def report(payload: AgentReportRequest,
            endpoint: Endpoint = Depends(get_agent_endpoint), db: Session = Depends(get_db)):
     endpoint.last_seen = datetime.now(timezone.utc)
-    labels = {l.name: l for l in db.query(ClassificationLabel)
-              .filter(ClassificationLabel.tenant_id == endpoint.tenant_id).all()}
-    created = 0
+    tid = endpoint.tenant_id
+
+    labels = {l.name: l.id for l in db.query(ClassificationLabel)
+              .filter(ClassificationLabel.tenant_id == tid).all()}
+    # Load rules once and classify in memory — avoids a DB query per reported file.
+    compiled, fallback_id = load_matcher(db, tid)
+    # Skip files this endpoint already reported, so repeated scans don't pile up duplicates.
+    seen = {n for (n,) in db.query(Asset.name)
+            .filter(Asset.tenant_id == tid, Asset.endpoint_id == endpoint.id).all()}
+
+    rows = []
     for item in payload.assets:
+        if item.name in seen:
+            continue
+        seen.add(item.name)
         if item.label and item.label in labels:
-            label_id = labels[item.label].id
+            label_id = labels[item.label]
             matched = ", ".join(item.matched_rules)
         else:
-            # Agent didn't classify locally — classify server-side.
-            label, matched_names = classify_text(db, endpoint.tenant_id, item.name, item.content_excerpt)
-            label_id = label.id if label else None
+            label_id, matched_names = match_rules(compiled, fallback_id, item.name, item.content_excerpt)
             matched = ", ".join(matched_names)
-        db.add(Asset(
-            tenant_id=endpoint.tenant_id, name=item.name, asset_type=item.asset_type,
-            content_excerpt=item.content_excerpt[:300], label_id=label_id,
-            matched_rules=matched, source="agent", endpoint_id=endpoint.id,
-        ))
-        created += 1
-    db.add(AuditLog(tenant_id=endpoint.tenant_id, action="agent.report",
-                    detail=f"{created} assets reported by {endpoint.hostname}"))
+        rows.append({
+            "tenant_id": tid, "name": item.name, "asset_type": item.asset_type,
+            "content_excerpt": item.content_excerpt[:300], "label_id": label_id,
+            "matched_rules": matched, "source": "agent", "endpoint_id": endpoint.id,
+        })
+
+    if rows:
+        db.bulk_insert_mappings(Asset, rows)
+    db.add(AuditLog(tenant_id=tid, action="agent.report",
+                    detail=f"{len(rows)} new assets reported by {endpoint.hostname}"))
     db.commit()
-    return {"accepted": created}
+    return {"accepted": len(rows), "skipped_duplicates": len(payload.assets) - len(rows)}
