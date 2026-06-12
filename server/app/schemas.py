@@ -192,6 +192,28 @@ class SubscribeRequest(BaseModel):
     card_cvc: str = ""
 
 
+class StampPolicyOut(BaseModel):
+    enabled: bool
+    mandatory: bool
+    placement: str
+    font_name: str
+    font_size: int
+    color: str
+    text_template: str
+    exempt_emails: str
+
+
+class StampPolicyIn(BaseModel):
+    enabled: bool = False
+    mandatory: bool = False
+    placement: str = "footer"
+    font_name: str = "Arial"
+    font_size: int = Field(default=10, ge=6, le=48)
+    color: str = "#dc2626"
+    text_template: str = "CLASSIFICATION: {label}"
+    exempt_emails: str = ""
+
+
 class WatermarkOut(BaseModel):
     enabled: bool
     opacity: float

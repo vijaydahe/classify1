@@ -567,6 +567,46 @@ const views = {
     watermarkPreview();
   },
 
+  async stamp() {
+    const p = await api("/api/admin/stamp-policy");
+    render(`
+      <h2>Document stamping</h2>
+      <div class="panel" style="max-width:640px">
+        <p class="muted" style="font-size:13.5px;margin-bottom:16px">
+          Stamp the classification label into the header or footer of documents (Word &amp; PDF).
+          Turn on <strong>mandatory</strong> stamping to require it before sharing — enforced inside Word by
+          the ClassifyHub add-in, and by the endpoint stamping tool. Named users can be exempted.</p>
+        <div class="slider-row">
+          <label>Enabled</label>
+          <input type="checkbox" id="sp-enabled" ${p.enabled ? "checked" : ""} style="width:auto;flex:0">
+        </div>
+        <div class="slider-row">
+          <label>Mandatory (block unstamped)</label>
+          <input type="checkbox" id="sp-mandatory" ${p.mandatory ? "checked" : ""} style="width:auto;flex:0">
+        </div>
+        <label>Placement</label>
+        <select id="sp-placement">
+          <option value="footer" ${p.placement === "footer" ? "selected" : ""}>Footer</option>
+          <option value="header" ${p.placement === "header" ? "selected" : ""}>Header</option>
+        </select>
+        <div class="row">
+          <div><label>Font name</label><input id="sp-font" value="${esc(p.font_name)}"></div>
+          <div class="fixed" style="width:110px"><label>Font size (pt)</label><input id="sp-size" type="number" value="${p.font_size}"></div>
+          <div class="fixed" style="width:90px"><label>Colour</label><input id="sp-color" type="color" value="${esc(p.color)}" style="height:38px;padding:4px"></div>
+        </div>
+        <label>Stamp text (use <span class="mono">{label}</span> for the classification)</label>
+        <input id="sp-template" value="${esc(p.text_template)}">
+        <label>Exempt users (emails, one per line — admin-granted exceptions)</label>
+        <textarea id="sp-exempt" rows="3" placeholder="ceo@company.com">${esc(p.exempt_emails)}</textarea>
+        <div id="sp-preview" style="margin:6px 0 14px;padding:14px;border:1px dashed var(--border);border-radius:8px;text-align:center"></div>
+        <button onclick="saveStamp()">Save stamping policy</button>
+      </div>
+    `);
+    ["sp-font", "sp-size", "sp-color", "sp-template"].forEach(id =>
+      document.getElementById(id).addEventListener("input", stampPreview));
+    stampPreview();
+  },
+
   async billing() {
     const [plans, sub, payments] = await Promise.all([
       api("/api/billing/plans"), api("/api/billing/subscription"), api("/api/billing/payments")]);
@@ -827,6 +867,35 @@ async function saveWatermark() {
     const cfg = await api("/api/admin/watermark", { method: "PUT", body: readWatermarkForm() });
     WM.cfg = cfg; renderWatermark();
     flash("Watermark settings saved");
+  } catch (e) { flash(e.message, "err"); }
+}
+
+function stampPreview() {
+  const box = document.getElementById("sp-preview");
+  if (!box) return;
+  const text = (document.getElementById("sp-template").value || "CLASSIFICATION: {label}")
+    .replace("{label}", "Confidential");
+  box.innerHTML = `<span style="font-family:${esc(document.getElementById("sp-font").value)};
+    font-size:${parseInt(document.getElementById("sp-size").value) || 10}pt;
+    color:${esc(document.getElementById("sp-color").value)};font-weight:700">${esc(text)}</span>`;
+}
+
+async function saveStamp() {
+  try {
+    await api("/api/admin/stamp-policy", {
+      method: "PUT",
+      body: {
+        enabled: document.getElementById("sp-enabled").checked,
+        mandatory: document.getElementById("sp-mandatory").checked,
+        placement: document.getElementById("sp-placement").value,
+        font_name: document.getElementById("sp-font").value.trim() || "Arial",
+        font_size: parseInt(document.getElementById("sp-size").value) || 10,
+        color: document.getElementById("sp-color").value,
+        text_template: document.getElementById("sp-template").value.trim() || "CLASSIFICATION: {label}",
+        exempt_emails: document.getElementById("sp-exempt").value.trim(),
+      },
+    });
+    flash("Stamping policy saved");
   } catch (e) { flash(e.message, "err"); }
 }
 
