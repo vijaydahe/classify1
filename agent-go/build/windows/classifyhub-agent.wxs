@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ClassifyHub Go agent — WiX v4 MSI definition (single standalone package).
+
+  Build (on Windows with WiX v4 + the compiled binary in this folder):
+    wix build classifyhub-agent.wxs -d BinDir=. -o ClassifyHubAgent.msi
+  Sign for production (no malware/SmartScreen flags):
+    signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a ClassifyHubAgent.msi
+
+  The single static .exe both IS the service and installs/removes it. The custom
+  actions call the binary's own "install"/"uninstall" verbs, which register the
+  Windows Service through the SCM. perMachine + elevated => standard users cannot
+  install or uninstall (deploy via Intune/GPO for fleets).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="ClassifyHub Asset Scan Agent" Manufacturer="ClassifyHub"
+           Version="1.0.0.0" UpgradeCode="7E9C2A41-3B5D-4C8E-9F12-CLASSIFYHUBGO"
+           InstallerVersion="500" Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of the ClassifyHub agent is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="ARPNOREMOVE" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="ClassifyHub">
+        <Component Id="AgentExe" Guid="*">
+          <File Id="agentexe" Name="classifyhub-agent.exe"
+                Source="!(bindvar.BinDir)\classifyhub-agent-windows-amd64.exe" KeyPath="yes" />
+        </Component>
+        <Component Id="AgentConfig" Guid="*" NeverOverwrite="yes">
+          <File Id="config.json" Name="config.json" Source="!(bindvar.BinDir)\config.json" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Register/start and stop/remove the Windows Service via the binary's own verbs. -->
+    <CustomAction Id="SvcInstall" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no"
+      ExeCommand="&quot;[INSTALLFOLDER]classifyhub-agent.exe&quot; install" Return="check" />
+    <CustomAction Id="SvcUninstall" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no"
+      ExeCommand="&quot;[INSTALLFOLDER]classifyhub-agent.exe&quot; uninstall" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="SvcInstall" After="InstallFiles" Condition="NOT REMOVE" />
+      <Custom Action="SvcUninstall" Before="RemoveFiles" Condition="REMOVE" />
+    </InstallExecuteSequence>
+
+    <Feature Id="Main">
+      <ComponentRef Id="AgentExe" />
+      <ComponentRef Id="AgentConfig" />
+    </Feature>
+  </Package>
+</Wix>

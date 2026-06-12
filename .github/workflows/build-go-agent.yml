@@ -1,0 +1,57 @@
+name: Build Go agent + installers
+
+# Builds the static Go agent and packages native MSI/PKG installers on their
+# target OS runners. Add signing secrets + the documented signing steps for
+# production-ready, non-flagged installers.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["go-agent-v*"]
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    defaults:
+      run: { working-directory: agent-go }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.25" }
+      - run: go vet ./...
+      - run: bash build/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-binaries
+          path: agent-go/dist/*
+
+  windows-msi:
+    needs: binaries
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: agent-binaries, path: agent-go/dist }
+      - name: Build MSI (WiX v4)
+        run: |
+          dotnet tool install --global wix
+          wix build agent-go/build/windows/classifyhub-agent.wxs -d BinDir=dist -o ClassifyHubAgent.msi
+        shell: pwsh
+        working-directory: agent-go
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-msi, path: agent-go/ClassifyHubAgent.msi }
+
+  macos-pkg:
+    needs: binaries
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: agent-binaries, path: agent-go/dist }
+      - name: Build PKG
+        run: |
+          chmod +x build/macos/build_pkg.sh
+          ./build/macos/build_pkg.sh
+        working-directory: agent-go
+      - uses: actions/upload-artifact@v4
+        with: { name: macos-pkg, path: agent-go/ClassifyHubAgent.pkg }
