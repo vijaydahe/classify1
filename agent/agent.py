@@ -33,6 +33,7 @@ TEXT_EXTENSIONS = {".txt", ".md", ".csv", ".log", ".json", ".xml", ".yaml", ".ym
                    ".go", ".rb", ".cs", ".cpp", ".sh", ".ps1", ".sql", ".html"}
 MAX_CONTENT_BYTES = 64 * 1024
 MAX_FILES_PER_SCAN = 2000
+REPORT_BATCH = 200  # assets per /report request
 
 
 def api(server_url: str, path: str, payload: dict | None = None,
@@ -122,10 +123,15 @@ def run_once(config: dict) -> None:
     print(f"[agent] fetched {len(rules)} classification rules")
     assets = scan(config, rules)
     print(f"[agent] scanned {len(assets)} files")
-    if assets:
+    # Report in batches so large scans don't exceed server request/timeout limits.
+    accepted = 0
+    for i in range(0, len(assets), REPORT_BATCH):
+        batch = assets[i:i + REPORT_BATCH]
         result = api(config["server_url"], "/api/agent/report",
-                     {"assets": assets}, api_key=state["api_key"])
-        print(f"[agent] server accepted {result['accepted']} assets")
+                     {"assets": batch}, api_key=state["api_key"])
+        accepted += result.get("accepted", 0)
+    if assets:
+        print(f"[agent] server accepted {accepted} new assets")
 
 
 def main() -> int:
