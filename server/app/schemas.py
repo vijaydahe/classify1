@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ---- Auth ----
@@ -157,6 +157,14 @@ class AgentAssetReport(BaseModel):
     label: str | None = None
     matched_rules: list[str] = []
     content_excerpt: str = ""
+
+    @field_validator("matched_rules", "content_excerpt", "asset_type", mode="before")
+    @classmethod
+    def _none_to_default(cls, v, info):
+        # Tolerate null from agents (Go marshals empty slices/strings as null).
+        if v is None:
+            return [] if info.field_name == "matched_rules" else ""
+        return v
 
 
 class AgentReportRequest(BaseModel):
