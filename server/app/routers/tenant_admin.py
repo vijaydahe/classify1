@@ -28,6 +28,9 @@ from ..security import hash_password
 router = APIRouter(prefix="/api/admin", tags=["tenant-admin"])
 
 AGENT_DIR = Path(__file__).resolve().parents[3] / "agent"
+# Prebuilt single-file Go agent binaries served with the download (static, no
+# Python/Node runtime needed). macOS binary is a universal x86_64+arm64 build.
+AGENT_BIN_DIR = Path(__file__).resolve().parents[2] / "agent_bin"
 SUPPORTED_PLATFORMS = {"macos", "windows"}
 
 
@@ -205,64 +208,105 @@ def download_build(build_id: int, request: Request,
         raise HTTPException(404, "Build not found")
 
     server_url = str(request.base_url).rstrip("/")
+    # The agent runs as a system service (root / SYSTEM), so scan the all-users
+    # directory rather than a single user's home. The scanner prunes caches and
+    # system folders, and is capped by max_files_per_scan.
+    scan_paths = ["C:\\Users"] if build.platform == "windows" else ["/Users"]
     config = {
         "server_url": server_url,
         "enrollment_token": build.enrollment_token,
         "platform": build.platform,
         "version": build.version,
-        "scan_paths": ["~/Documents", "~/Desktop", "~/Downloads"],
+        "scan_paths": scan_paths,
         "scan_interval_minutes": 60,
     }
 
+    # Single statically-linked Go binary — no Python/Node runtime on the endpoint.
+    if build.platform == "windows":
+        binary_path = AGENT_BIN_DIR / "classifyhub-agent.exe"
+        binary_arcname = "classifyhub-agent/classifyhub-agent.exe"
+    else:
+        binary_path = AGENT_BIN_DIR / "classifyhub-agent"
+        binary_arcname = "classifyhub-agent/classifyhub-agent"
+    if not binary_path.exists():
+        raise HTTPException(503, "Agent binary not available on the server for this platform. "
+                                 "Build it via build/build.sh and redeploy.")
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.write(AGENT_DIR / "agent.py", "classifyhub-agent/agent.py")
-        zf.write(AGENT_DIR / "stamp.py", "classifyhub-agent/stamp.py")
-        zf.write(AGENT_DIR / "installers" / "install_gui.py", "classifyhub-agent/install_gui.py")
+        # The compiled agent (mark executable in the zip for macOS/Linux).
+        info = zipfile.ZipInfo(binary_arcname)
+        info.external_attr = 0o755 << 16
+        info.compress_type = zipfile.ZIP_DEFLATED
+        zf.writestr(info, binary_path.read_bytes())
         zf.writestr("classifyhub-agent/config.json", json.dumps(config, indent=2))
+
         if build.platform == "macos":
-            zf.write(AGENT_DIR / "installers" / "install_macos.sh", "classifyhub-agent/install.sh")
-        else:
-            zf.write(AGENT_DIR / "installers" / "install_windows.ps1", "classifyhub-agent/install.ps1")
-            zf.write(AGENT_DIR / "installers" / "Install ClassifyHub.bat",
-                     "classifyhub-agent/Install ClassifyHub.bat")
-        readme = (
-            f"ClassifyHub endpoint agent ({build.platform}) v{build.version}\n"
-            f"{'=' * 48}\n\n"
-        )
-        if build.platform == "macos":
-            readme += (
-                "INSTALL (macOS)\n"
-                "---------------\n"
-                "Easiest — graphical installer:\n"
-                "  1. Clear the internet-quarantine flag on this unzipped folder:\n"
-                "       xattr -dr com.apple.quarantine \"<this folder>\"\n"
-                "  2. Run the setup window:\n"
-                "       python3 install_gui.py\n\n"
-                "Command-line alternative:  bash install.sh\n\n"
-                "The \"cannot verify it is free of malware\" message just means the agent\n"
-                "isn't Apple-notarized yet (clear quarantine as above, or System Settings\n"
-                "> Privacy & Security > Open Anyway). Requires python3 (preinstalled or\n"
-                "from the Xcode Command Line Tools). The agent runs at every login.\n"
+            installer = (
+                "#!/bin/bash\n"
+                "# ClassifyHub macOS installer — copies the agent to a stable location,\n"
+                "# clears the download quarantine, and registers it as a launchd daemon.\n"
+                "set -e\n"
+                'cd "$(dirname "$0")"\n'
+                'DIR="/Library/Application Support/ClassifyHub"\n'
+                'echo "Installing ClassifyHub agent (requires your admin password)..."\n'
+                'sudo mkdir -p "$DIR"\n'
+                'sudo cp classifyhub-agent "$DIR/classifyhub-agent"\n'
+                'sudo cp config.json "$DIR/config.json"\n'
+                'sudo xattr -dr com.apple.quarantine "$DIR/classifyhub-agent" 2>/dev/null || true\n'
+                'sudo chmod +x "$DIR/classifyhub-agent"\n'
+                'sudo "$DIR/classifyhub-agent" install\n'
+                'echo "Installed. The agent runs at boot and scans on schedule."\n'
+            )
+            info = zipfile.ZipInfo("classifyhub-agent/install.command")
+            info.external_attr = 0o755 << 16
+            zf.writestr(info, installer)
+            readme = (
+                f"ClassifyHub agent (macOS, universal) v{build.version}\n"
+                f"{'=' * 48}\n\n"
+                "INSTALL — double-click 'install.command' (or in Terminal: bash install.command).\n"
+                "It asks for your admin password, installs the agent as a background service,\n"
+                "and starts it. That's it — one binary, no Python or other runtime needed.\n\n"
+                "If macOS says \"cannot verify it is free of malware\", the binary just isn't\n"
+                "Apple-notarized yet: right-click install.command > Open, or run\n"
+                "  xattr -dr com.apple.quarantine .\n"
+                "in this folder first. (Production builds are signed + notarized — see\n"
+                "agent/installers/SIGNING_AND_CERTIFICATION.md.)\n\n"
+                "Manage: sudo classifyhub-agent {start|stop|uninstall}\n"
+                "Logs:   /Library/Application Support/ClassifyHub/agent.log\n"
             )
         else:
-            readme += (
-                "INSTALL (Windows)\n"
-                "-----------------\n"
-                "Easiest — double-click \"Install ClassifyHub.bat\" for a setup window.\n\n"
-                "Command-line alternative (right-click > Run with PowerShell):\n"
-                "  powershell -ExecutionPolicy Bypass -File install.ps1\n\n"
-                "If a window flashes and closes, Python isn't installed or on PATH:\n"
-                "install Python 3 from https://www.python.org/downloads/ and TICK\n"
-                "\"Add python.exe to PATH\". SmartScreen may warn (unsigned script) —\n"
-                "choose \"More info\" > \"Run anyway\". The agent runs at every login.\n"
+            installer = (
+                "@echo off\r\n"
+                "REM ClassifyHub Windows installer — elevates, copies the agent, and\r\n"
+                "REM registers it as a Windows Service.\r\n"
+                'net session >nul 2>&1\r\n'
+                "if %errorlevel% neq 0 (\r\n"
+                "  powershell -Command \"Start-Process '%~f0' -Verb RunAs\"\r\n"
+                "  exit /b\r\n"
+                ")\r\n"
+                'cd /d "%~dp0"\r\n'
+                'set "DIR=%ProgramData%\\ClassifyHub"\r\n'
+                'if not exist "%DIR%" mkdir "%DIR%"\r\n'
+                'copy /Y classifyhub-agent.exe "%DIR%\\classifyhub-agent.exe" >nul\r\n'
+                'copy /Y config.json "%DIR%\\config.json" >nul\r\n'
+                '"%DIR%\\classifyhub-agent.exe" install\r\n'
+                'echo Installed. The agent runs as a Windows Service.\r\n'
+                "pause\r\n"
             )
-        readme += (
-            "\nThe agent enrolls with your workspace on first run, then scans the\n"
-            "configured paths and reports classified assets back to the server.\n"
-            "For signed, fleet-managed deployment see the MSI/PKG installers and\n"
-            "MANAGED_DEPLOYMENT guide in the ClassifyHub repository.\n"
-        )
+            zf.writestr("classifyhub-agent/Install ClassifyHub.bat", installer)
+            readme = (
+                f"ClassifyHub agent (Windows) v{build.version}\n"
+                f"{'=' * 48}\n\n"
+                "INSTALL — double-click 'Install ClassifyHub.bat'. It requests admin rights,\r\n"
+                "installs the agent as a Windows Service, and starts it. One binary, no\r\n"
+                "Python or other runtime needed.\r\n\n"
+                "SmartScreen may warn because the binary isn't code-signed yet: choose\r\n"
+                "\"More info\" > \"Run anyway\". (Production builds are signed — see\r\n"
+                "agent/installers/SIGNING_AND_CERTIFICATION.md.)\r\n\n"
+                "Manage (admin prompt): classifyhub-agent.exe {start|stop|uninstall}\r\n"
+                "Logs: %ProgramData%\\ClassifyHub\\agent.log\r\n"
+            )
         zf.writestr("classifyhub-agent/README.txt", readme)
 
     build.downloads += 1
