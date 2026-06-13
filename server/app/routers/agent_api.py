@@ -12,6 +12,14 @@ from ..schemas import AgentEnrollRequest, AgentReportRequest
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 
+def _clean(s: str) -> str:
+    """Strip NUL bytes (and other C0 control chars except tab/newline) that
+    Postgres text columns reject and that have no business in stored metadata."""
+    if not s:
+        return ""
+    return "".join(ch for ch in s if ch == "\t" or ch == "\n" or ch >= " ")
+
+
 @router.post("/enroll")
 def enroll(payload: AgentEnrollRequest, db: Session = Depends(get_db)):
     build = db.query(AgentBuild).filter(AgentBuild.enrollment_token == payload.enrollment_token).first()
@@ -67,10 +75,13 @@ def report(payload: AgentReportRequest,
         else:
             label_id, matched_names = match_rules(compiled, fallback_id, item.name, item.content_excerpt)
             matched = ", ".join(matched_names)
+        # Postgres text columns reject NUL bytes, which appear in binary/log files.
         rows.append({
-            "tenant_id": tid, "name": item.name, "asset_type": item.asset_type,
-            "content_excerpt": item.content_excerpt[:300], "label_id": label_id,
-            "matched_rules": matched, "source": "agent", "endpoint_id": endpoint.id,
+            "tenant_id": tid, "name": _clean(item.name)[:255],
+            "asset_type": _clean(item.asset_type)[:60] or "file",
+            "content_excerpt": _clean(item.content_excerpt)[:300],
+            "label_id": label_id, "matched_rules": _clean(matched),
+            "source": "agent", "endpoint_id": endpoint.id,
         })
 
     if rows:

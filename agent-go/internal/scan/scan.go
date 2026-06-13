@@ -147,8 +147,19 @@ func (e *Engine) process(path string) (state.Asset, bool) {
 	}
 	return state.Asset{
 		Name: path, AssetType: "file", Label: label,
-		MatchedRules: matched, ContentExcerpt: excerpt,
+		MatchedRules: matched, ContentExcerpt: clean(excerpt),
 	}, true
+}
+
+// clean drops NUL and other C0 control bytes (keeping tab/newline) so the
+// excerpt is storable in a Postgres text column on the server.
+func clean(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r == 0 || (r < 0x20 && r != '\t' && r != '\n' && r != '\r') {
+			return -1
+		}
+		return r
+	}, s)
 }
 
 // classify returns the highest-sensitivity matching label and the rule names.
