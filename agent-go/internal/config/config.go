@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -86,7 +87,25 @@ func Load() (*Config, error) {
 	if len(c.ScanPaths) == 0 {
 		c.ScanPaths = defaultScanPaths()
 	}
+	c.ScanPaths = expandPaths(c.ScanPaths)
 	return &c, nil
+}
+
+// expandPaths resolves ~ and environment variables in configured scan paths so
+// hand-edited configs ("~/Documents", "%USERPROFILE%\\Docs") work as expected.
+func expandPaths(paths []string) []string {
+	home, _ := os.UserHomeDir()
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		p = os.ExpandEnv(p)
+		if p == "~" {
+			p = home
+		} else if strings.HasPrefix(p, "~/") || strings.HasPrefix(p, `~\`) {
+			p = filepath.Join(home, p[2:])
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // Interval returns the scan interval as a duration.
