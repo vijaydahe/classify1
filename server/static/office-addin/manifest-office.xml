@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ClassifyHub task-pane add-in for Word, Excel and PowerPoint.
+  Served with {{ORIGIN}} substituted for your deployment by the
+  /office-addin/manifest-office.xml route. Sideload this manifest, or deploy it
+  centrally via Microsoft 365 admin center > Integrated apps.
+-->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+           xsi:type="TaskPaneApp">
+  <Id>4b1c9e10-2a3d-4f7e-9b1a-classifyhub001</Id>
+  <Version>1.0.0</Version>
+  <ProviderName>ClassifyHub</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="ClassifyHub" />
+  <Description DefaultValue="Stamp the document's classification per your organization's policy." />
+  <IconUrl DefaultValue="{{ORIGIN}}/static/office-addin/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="{{ORIGIN}}/static/office-addin/icon-80.png" />
+  <Hosts>
+    <Host Name="Document" />
+    <Host Name="Workbook" />
+    <Host Name="Presentation" />
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="{{ORIGIN}}/static/office-addin/taskpane.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="chGroup">
+                <Label resid="grpLabel" />
+                <Control xsi:type="Button" id="chBtn">
+                  <Label resid="btnLabel" />
+                  <Supertip><Title resid="btnLabel" /><Description resid="btnTip" /></Supertip>
+                  <Icon><bt:Image size="16" resid="i16" /><bt:Image size="32" resid="i32" /><bt:Image size="80" resid="i80" /></Icon>
+                  <Action xsi:type="ShowTaskpane"><TaskpaneId>chPane</TaskpaneId><SourceLocation resid="paneUrl" /></Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="chGroupX">
+                <Label resid="grpLabel" />
+                <Control xsi:type="Button" id="chBtnX">
+                  <Label resid="btnLabel" />
+                  <Supertip><Title resid="btnLabel" /><Description resid="btnTip" /></Supertip>
+                  <Icon><bt:Image size="16" resid="i16" /><bt:Image size="32" resid="i32" /><bt:Image size="80" resid="i80" /></Icon>
+                  <Action xsi:type="ShowTaskpane"><TaskpaneId>chPane</TaskpaneId><SourceLocation resid="paneUrl" /></Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+      <Host xsi:type="Presentation">
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="chGroupP">
+                <Label resid="grpLabel" />
+                <Control xsi:type="Button" id="chBtnP">
+                  <Label resid="btnLabel" />
+                  <Supertip><Title resid="btnLabel" /><Description resid="btnTip" /></Supertip>
+                  <Icon><bt:Image size="16" resid="i16" /><bt:Image size="32" resid="i32" /><bt:Image size="80" resid="i80" /></Icon>
+                  <Action xsi:type="ShowTaskpane"><TaskpaneId>chPane</TaskpaneId><SourceLocation resid="paneUrl" /></Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="i16" DefaultValue="{{ORIGIN}}/static/office-addin/icon-16.png" />
+        <bt:Image id="i32" DefaultValue="{{ORIGIN}}/static/office-addin/icon-32.png" />
+        <bt:Image id="i80" DefaultValue="{{ORIGIN}}/static/office-addin/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="paneUrl" DefaultValue="{{ORIGIN}}/static/office-addin/taskpane.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="grpLabel" DefaultValue="ClassifyHub" />
+        <bt:String id="btnLabel" DefaultValue="Classify" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="btnTip" DefaultValue="Stamp this document's classification per your organization's policy." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

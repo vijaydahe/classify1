@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ClassifyHub Outlook add-in. Provides the task-pane classifier AND an
+  OnMessageSend handler that BLOCKS sending an unclassified email
+  (Smart Alerts). Served with {{ORIGIN}} substituted by the
+  /office-addin/manifest-outlook.xml route. Deploy via Microsoft 365 admin
+  center > Integrated apps for org-wide, non-removable enforcement.
+-->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
+           xsi:type="MailApp">
+  <Id>4b1c9e10-2a3d-4f7e-9b1a-classifyhub002</Id>
+  <Version>1.0.0</Version>
+  <ProviderName>ClassifyHub</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="ClassifyHub" />
+  <Description DefaultValue="Classify email before sending, per your organization's policy." />
+  <IconUrl DefaultValue="{{ORIGIN}}/static/office-addin/icon-64.png" />
+  <HighResolutionIconUrl DefaultValue="{{ORIGIN}}/static/office-addin/icon-128.png" />
+  <Hosts><Host Name="Mailbox" /></Hosts>
+  <Requirements>
+    <Sets><Set Name="Mailbox" MinVersion="1.5" /></Sets>
+  </Requirements>
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="{{ORIGIN}}/static/office-addin/taskpane.html" />
+        <RequestedHeight>250</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  <Permissions>ReadWriteItem</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.12">
+          <bt:Set Name="Mailbox" />
+        </bt:Sets>
+      </Requirements>
+      <Hosts>
+        <Host xsi:type="MailHost">
+          <!-- Block sending an unclassified message. -->
+          <Runtimes>
+            <Runtime resid="runtimeUrl" lifetime="short">
+              <Override type="javascript" resid="jsUrl" />
+            </Runtime>
+          </Runtimes>
+          <DesktopFormFactor>
+            <FunctionFile resid="jsUrl" />
+            <ExtensionPoint xsi:type="LaunchEvent">
+              <LaunchEvents>
+                <LaunchEvent Type="OnMessageSend" FunctionName="onMessageSend" SendMode="PromptUser" />
+              </LaunchEvents>
+              <SourceLocation resid="runtimeUrl" />
+            </ExtensionPoint>
+            <ExtensionPoint xsi:type="MessageComposeCommandSurface">
+              <OfficeTab id="TabDefault">
+                <Group id="chGrp">
+                  <Label resid="grpLabel" />
+                  <Control xsi:type="Button" id="chOpen">
+                    <Label resid="btnLabel" />
+                    <Supertip><Title resid="btnLabel" /><Description resid="btnTip" /></Supertip>
+                    <Icon><bt:Image size="16" resid="i16" /><bt:Image size="32" resid="i32" /><bt:Image size="80" resid="i80" /></Icon>
+                    <Action xsi:type="ShowTaskpane"><SourceLocation resid="paneUrl" /></Action>
+                  </Control>
+                </Group>
+              </OfficeTab>
+            </ExtensionPoint>
+          </DesktopFormFactor>
+        </Host>
+      </Hosts>
+      <Resources>
+        <bt:Images>
+          <bt:Image id="i16" DefaultValue="{{ORIGIN}}/static/office-addin/icon-16.png" />
+          <bt:Image id="i32" DefaultValue="{{ORIGIN}}/static/office-addin/icon-32.png" />
+          <bt:Image id="i80" DefaultValue="{{ORIGIN}}/static/office-addin/icon-80.png" />
+        </bt:Images>
+        <bt:Urls>
+          <bt:Url id="paneUrl" DefaultValue="{{ORIGIN}}/static/office-addin/taskpane.html" />
+          <bt:Url id="jsUrl" DefaultValue="{{ORIGIN}}/static/office-addin/commands.js" />
+          <bt:Url id="runtimeUrl" DefaultValue="{{ORIGIN}}/static/office-addin/commands.html" />
+        </bt:Urls>
+        <bt:ShortStrings>
+          <bt:String id="grpLabel" DefaultValue="ClassifyHub" />
+          <bt:String id="btnLabel" DefaultValue="Classify" />
+        </bt:ShortStrings>
+        <bt:LongStrings>
+          <bt:String id="btnTip" DefaultValue="Classify this email before sending." />
+        </bt:LongStrings>
+      </Resources>
+    </VersionOverrides>
+  </VersionOverrides>
+</OfficeApp>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClassifyHub</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: "Montserrat", "Segoe UI", system-ui, sans-serif; margin: 0; padding: 16px; color: #0f172a; }
+    h1 { font-size: 17px; margin: 0 0 2px; }
+    h1 span { color: #4f46e5; }
+    .sub { color: #64748b; font-size: 12px; margin-bottom: 14px; }
+    label { font-size: 12px; color: #475569; display: block; margin: 10px 0 4px; font-weight: 600; }
+    select, input { width: 100%; padding: 9px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 14px; font-family: inherit; }
+    button { width: 100%; margin-top: 14px; padding: 11px; border: none; border-radius: 7px;
+             background: #4f46e5; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    button:hover { background: #4338ca; }
+    button.ghost { background: #fff; color: #4f46e5; border: 1px solid #c7d2fe; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .chip { flex: 1; text-align: center; padding: 8px 4px; border-radius: 7px; color: #fff; font-size: 12px;
+            font-weight: 700; cursor: pointer; opacity: .55; border: 2px solid transparent; }
+    .chip.on { opacity: 1; border-color: #0f172a; }
+    .warn { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 10px; border-radius: 7px; font-size: 12.5px; margin-bottom: 12px; }
+    .ok { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 10px; border-radius: 7px; font-size: 12.5px; margin-bottom: 12px; }
+    #status { margin-top: 12px; font-size: 13px; }
+    #status.err { color: #b91c1c; } #status.good { color: #15803d; }
+    .hostline { font-size: 11px; color: #94a3b8; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Classify<span>Hub</span></h1>
+  <div class="sub" id="sub">Stamp this document's classification.</div>
+  <div id="policy-note"></div>
+
+  <label for="token">Workspace access token <a href="#" id="tokhelp" style="font-weight:400">(?)</a></label>
+  <input id="token" type="password" placeholder="paste once from the web app">
+
+  <label>Classification</label>
+  <div class="chips" id="chips">
+    <div class="chip" style="background:#16a34a" data-label="Public">Public</div>
+    <div class="chip" style="background:#2563eb" data-label="Internal">Internal</div>
+    <div class="chip on" style="background:#d97706" data-label="Confidential">Confidential</div>
+    <div class="chip" style="background:#dc2626" data-label="Restricted">Restricted</div>
+  </div>
+
+  <button id="stampBtn">Stamp document</button>
+  <button id="suggestBtn" class="ghost">Suggest from content</button>
+  <div id="status"></div>
+  <div class="hostline" id="hostline"></div>
+
+  <script src="taskpane.js"></script>
+</body>
+</html>
