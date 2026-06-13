@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
@@ -84,6 +84,17 @@ def api_docs_page():
 @app.get("/owner", include_in_schema=False)
 def owner_console():
     return FileResponse(STATIC_DIR / "owner.html")
+
+
+@app.get("/office-addin/{manifest}", include_in_schema=False)
+def office_manifest(manifest: str, request: Request):
+    """Serves an Office add-in manifest with the deployment origin filled in."""
+    allowed = {"manifest-office.xml", "manifest-outlook.xml"}
+    if manifest not in allowed:
+        return FileResponse(STATIC_DIR / "office-addin" / "taskpane.html")
+    origin = str(request.base_url).rstrip("/")
+    xml = (STATIC_DIR / "office-addin" / manifest).read_text().replace("{{ORIGIN}}", origin)
+    return Response(content=xml, media_type="application/xml")
 
 
 @app.post("/api/contact", tags=["public"])

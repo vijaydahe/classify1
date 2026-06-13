@@ -601,6 +601,24 @@ const views = {
         <div id="sp-preview" style="margin:6px 0 14px;padding:14px;border:1px dashed var(--border);border-radius:8px;text-align:center"></div>
         <button onclick="saveStamp()">Save stamping policy</button>
       </div>
+      <div class="panel" style="max-width:640px">
+        <h3>Enforce in Office apps (Word, Excel, PowerPoint, Outlook)</h3>
+        <p class="muted" style="font-size:13.5px;margin-bottom:12px">
+          Install the ClassifyHub Office add-in so users stamp documents in-app, and Outlook
+          <strong>blocks sending an unclassified email</strong>. Deploy these manifests org-wide via
+          <em>Microsoft 365 admin center → Integrated apps</em> (or sideload to test).</p>
+        <table>
+          <tr><th>App</th><th>Manifest URL</th></tr>
+          <tr><td>Word / Excel / PowerPoint</td>
+            <td class="mono"><a href="${location.origin}/office-addin/manifest-office.xml" target="_blank">${location.origin}/office-addin/manifest-office.xml</a></td></tr>
+          <tr><td>Outlook (send enforcement)</td>
+            <td class="mono"><a href="${location.origin}/office-addin/manifest-outlook.xml" target="_blank">${location.origin}/office-addin/manifest-outlook.xml</a></td></tr>
+        </table>
+        <p class="muted" style="font-size:12.5px;margin-top:10px">
+          PDFs, text files and other non-Office documents are stamped by the endpoint agent on
+          detection. True save-blocking inside Word/Excel/PowerPoint requires the heavier
+          Windows COM/VSTO add-in (roadmap); Outlook send-blocking works today.</p>
+      </div>
     `);
     ["sp-font", "sp-size", "sp-color", "sp-template"].forEach(id =>
       document.getElementById(id).addEventListener("input", stampPreview));

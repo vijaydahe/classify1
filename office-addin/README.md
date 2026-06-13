@@ -1,47 +1,54 @@
-# ClassifyHub for Microsoft Word — mandatory-stamping add-in
+# ClassifyHub Office add-in — classification stamping & send enforcement
 
-This Office.js add-in enforces the organization's stamping policy **inside Word**,
-which is where most documents are created. It is the practical answer to
-"don't let users save a document without a classification stamp."
+One Office.js add-in that covers **Word, Excel, PowerPoint and Outlook**. It
+reads your workspace stamp policy (Admin Console → Document Stamping) and stamps
+the classification into the document; in Outlook it can **block sending** an
+unclassified email.
 
-## What it does
+The deployable copies are served by the ClassifyHub server:
 
-- On open, fetches your workspace's stamp policy from ClassifyHub.
-- Shows a task pane where the user picks a classification (Public / Internal /
-  Confidential / Restricted) and clicks **Stamp document** — inserting the label
-  into the header or footer with the admin-configured font, size and colour.
-- When the policy is **mandatory**, the add-in nags on save and re-inserts the
-  stamp if it is missing, **unless** the signed-in user is on the admin's
-  exception list (the server returns `exempt: true` for them).
+- Task pane / commands: `https://YOUR-APP-URL/static/office-addin/…`
+- Manifests (origin pre-filled):
+  - Word/Excel/PowerPoint → `https://YOUR-APP-URL/office-addin/manifest-office.xml`
+  - Outlook → `https://YOUR-APP-URL/office-addin/manifest-outlook.xml`
 
-## Why an add-in (and not the file-watcher agent)
+(The files here at the repo root are the originals; the served versions live in
+`server/static/office-addin/`.)
 
-A background agent can stamp files *after* they are written, but it cannot stop
-Word/Excel from saving in the first place — only code running *inside* the app
-can do that. Word add-ins can hook document events and modify the header/footer
-before save, so genuine enforcement lives here. For other apps, enforce via the
-agent (stamp-on-detect) plus MDM document-handling policies.
+## What each app enforces — honestly
 
-## Files
+| App | Stamp where | Force before save/send? |
+|---|---|---|
+| **Outlook** | `[CLASSIFICATION]` in the subject | **Yes.** `OnMessageSend` blocks Send until classified (Smart Alerts). |
+| **Word** | real header/footer | Stamps on click; warns when policy is mandatory. Office.js cannot hard-cancel Save. |
+| **Excel** | header/footer of every sheet | same as Word |
+| **PowerPoint** | banner line on the slide | same as Word |
+| **PDF / text / other** | handled by the **endpoint agent**, not this add-in | Stamped on detection (after save). |
 
-- `manifest.xml` — sideload/deploy descriptor (set your deployed URL).
-- `taskpane.html` / `taskpane.js` — the UI and stamping logic.
+Why Word/Excel/PowerPoint can't hard-block Save: the Office.js JavaScript API
+has no "cancel save" event. Only Outlook exposes a cancellable send event. A
+true save-block for the desktop Office apps requires a **COM/VSTO add-in**
+(Windows-only, installed via Group Policy) — that's the roadmap item. For the
+large majority of compliance needs, in-app stamping + mandatory-policy warnings +
+Outlook send-blocking + agent stamping of everything else is sufficient.
 
-## Deploy
+## Deploy (org-wide, non-removable by users)
 
-1. Host `taskpane.html`, `taskpane.js` on HTTPS (the ClassifyHub server can serve
-   them, or any static host).
-2. Edit `manifest.xml`: replace `https://YOUR-APP-URL` with your deployment.
-3. Distribute the add-in to users via the **Microsoft 365 admin center →
-   Integrated apps** (centralized deployment), which also makes it mandatory and
-   non-removable by end users — the same managed-deployment model as the
-   endpoint agent.
+1. **Microsoft 365 admin center → Settings → Integrated apps → Upload custom apps.**
+2. Upload by URL: paste the manifest URL above (one for Office, one for Outlook).
+3. Assign to users/groups; choose "fixed" deployment so users can't remove it.
+   Same managed-deployment model as the endpoint agent.
 
-## Limits (be honest with your security team)
+To test on one machine first, **sideload** the manifest (Office → Insert → My
+Add-ins → Upload My Add-in) — no admin center needed.
 
-Office.js cannot *hard-cancel* a save in current Word; it enforces by inserting
-the stamp on the save/sync event and warning the user. For a hard block you need
-a VSTO/COM add-in (`BeforeSave` cancel) deployed via Group Policy — a heavier,
-Windows-only path. The Office.js add-in here covers Word on Windows, Mac and the
-web with one codebase and is sufficient for the large majority of compliance
-needs.
+## How a user uses it
+
+1. Open the add-in (Home tab → ClassifyHub) — it shows the four levels.
+2. Click **Suggest from content** to auto-detect a level from the document text
+   (uses the same classifier as the platform), or pick one.
+3. Click **Stamp document**. Done — it's in the header/footer (or, in Outlook,
+   the subject). On a mandatory policy, Outlook won't send until this is done.
+
+First run asks for a workspace access token (paste once from the web app); it's
+cached locally so users don't re-enter it.
