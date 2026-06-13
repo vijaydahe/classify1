@@ -171,7 +171,8 @@ func (e *Engine) classify(name, content string) (string, []string) {
 		}
 	}
 	if len(matched) == 0 {
-		return "", nil
+		// Non-nil so JSON encodes [] not null (the server expects a list).
+		return "", []string{}
 	}
 	best := matched[0]
 	names := make([]string, 0, len(matched))
