@@ -602,22 +602,44 @@ const views = {
         <button onclick="saveStamp()">Save stamping policy</button>
       </div>
       <div class="panel" style="max-width:640px">
-        <h3>Enforce in Office apps (Word, Excel, PowerPoint, Outlook)</h3>
+        <h3>Enforce in Microsoft 365 (desktop &amp; web)</h3>
         <p class="muted" style="font-size:13.5px;margin-bottom:12px">
-          Install the ClassifyHub Office add-in so users stamp documents in-app, and Outlook
-          <strong>blocks sending an unclassified email</strong>. Deploy these manifests org-wide via
-          <em>Microsoft 365 admin center → Integrated apps</em> (or sideload to test).</p>
+          One Office add-in covers Word, Excel, PowerPoint and Outlook on <strong>desktop, Mac and
+          the web (Office 365 online)</strong>. Outlook <strong>blocks sending an unclassified email</strong>.
+          Deploy these manifests org-wide via <em>Microsoft 365 admin center → Integrated apps</em>
+          (or sideload to test).</p>
         <table>
           <tr><th>App</th><th>Manifest URL</th></tr>
-          <tr><td>Word / Excel / PowerPoint</td>
+          <tr><td>Word / Excel / PowerPoint (desktop + web)</td>
             <td class="mono"><a href="${location.origin}/office-addin/manifest-office.xml" target="_blank">${location.origin}/office-addin/manifest-office.xml</a></td></tr>
-          <tr><td>Outlook (send enforcement)</td>
+          <tr><td>Outlook — desktop + web (send enforcement)</td>
             <td class="mono"><a href="${location.origin}/office-addin/manifest-outlook.xml" target="_blank">${location.origin}/office-addin/manifest-outlook.xml</a></td></tr>
         </table>
-        <p class="muted" style="font-size:12.5px;margin-top:10px">
-          PDFs, text files and other non-Office documents are stamped by the endpoint agent on
-          detection. True save-blocking inside Word/Excel/PowerPoint requires the heavier
-          Windows COM/VSTO add-in (roadmap); Outlook send-blocking works today.</p>
+      </div>
+      <div class="panel" style="max-width:640px">
+        <h3>Enforce in Google Workspace</h3>
+        <p class="muted" style="font-size:13.5px;margin-bottom:10px">
+          A Google Workspace add-on stamps Google Docs, Sheets, Slides and Gmail (subject + body at
+          compose). Deploy the <span class="mono">google-workspace/</span> Apps Script project from the
+          repository, or publish it privately to your domain via the Google Workspace Marketplace SDK.</p>
+        <p class="muted" style="font-size:12.5px">
+          Note: Google gives add-ons no cancellable save/send event, so on Google it is stamp-on-demand
+          + policy + audit (no hard send-block — that is a Google platform limit). Hard DLP on Google is
+          set at the Workspace admin / Drive DLP layer.</p>
+      </div>
+      <div class="panel" style="max-width:640px">
+        <h3>Coverage summary</h3>
+        <table>
+          <tr><th>Platform</th><th>Stamp</th><th>Force before save/send</th></tr>
+          <tr><td>Outlook (desktop + web)</td><td>✅ subject</td><td>✅ blocks send</td></tr>
+          <tr><td>Word / Excel / PowerPoint (desktop + web)</td><td>✅ header/footer</td><td>⚠️ warn only*</td></tr>
+          <tr><td>Google Docs / Sheets / Slides</td><td>✅ header/footer/banner</td><td>⚠️ stamp-on-demand</td></tr>
+          <tr><td>Gmail</td><td>✅ subject + body</td><td>⚠️ stamp-on-demand</td></tr>
+          <tr><td>PDF / text / other files</td><td>✅ endpoint agent</td><td>after-the-fact</td></tr>
+        </table>
+        <p class="muted" style="font-size:12px;margin-top:8px">
+          * A true Save-block inside Word/Excel/PowerPoint needs the Windows COM/VSTO add-in (roadmap).
+          Only Outlook exposes a cancellable send event across vendors.</p>
       </div>
     `);
     ["sp-font", "sp-size", "sp-color", "sp-template"].forEach(id =>
