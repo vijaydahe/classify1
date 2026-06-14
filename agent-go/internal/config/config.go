@@ -47,6 +47,43 @@ func InstallDir() string {
 	return "/Library/Application Support/ClassifyHub"
 }
 
+// DataDir returns a writable directory for state.json and agent.log. It prefers
+// the platform install dir (where the service runs as root/SYSTEM), but when the
+// binary is run directly by a normal user it falls back to the executable's own
+// folder, then a per-user directory — so running the agent never fails on a
+// permission-denied write to /Library or %ProgramData%.
+func DataDir() string {
+	if d := os.Getenv("CLASSIFYHUB_DIR"); d != "" {
+		return d
+	}
+	inst := InstallDir()
+	if err := os.MkdirAll(inst, 0o755); err == nil && writable(inst) {
+		return inst
+	}
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		if writable(dir) {
+			return dir
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		d := filepath.Join(home, ".classifyhub")
+		if os.MkdirAll(d, 0o755) == nil {
+			return d
+		}
+	}
+	return inst
+}
+
+func writable(dir string) bool {
+	probe := filepath.Join(dir, ".chwrite")
+	if err := os.WriteFile(probe, []byte("x"), 0o600); err != nil {
+		return false
+	}
+	os.Remove(probe)
+	return true
+}
+
 // Path returns the absolute path to config.json beside the running binary,
 // falling back to the platform install directory.
 func Path() string {
