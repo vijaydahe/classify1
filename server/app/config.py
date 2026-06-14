@@ -9,4 +9,4 @@ OWNER_EMAIL = os.environ.get("CLASSIFYHUB_OWNER_EMAIL", "owner@classifyhub.app")
 OWNER_PASSWORD = os.environ.get("CLASSIFYHUB_OWNER_PASSWORD", "owner-admin-123")
 
 APP_NAME = "ClassifyHub"
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"

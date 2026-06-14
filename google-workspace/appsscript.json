@@ -1,0 +1,31 @@
+{
+  "timeZone": "Etc/UTC",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/documents.currentonly",
+    "https://www.googleapis.com/auth/spreadsheets.currentonly",
+    "https://www.googleapis.com/auth/presentations.currentonly",
+    "https://www.googleapis.com/auth/gmail.addons.execute",
+    "https://www.googleapis.com/auth/gmail.addons.current.action.compose",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.storage"
+  ],
+  "addOns": {
+    "common": {
+      "name": "ClassifyHub",
+      "logoUrl": "https://YOUR-APP-URL/static/office-addin/icon-128.png",
+      "useLocaleFromApp": true,
+      "homepageTrigger": { "runFunction": "onHomepage" }
+    },
+    "docs":   { "homepageTrigger": { "runFunction": "onHomepage" } },
+    "sheets": { "homepageTrigger": { "runFunction": "onHomepage" } },
+    "slides": { "homepageTrigger": { "runFunction": "onHomepage" } },
+    "gmail": {
+      "composeTrigger": {
+        "selectActions": [ { "text": "Classify email", "runFunction": "onGmailCompose" } ],
+        "draftAccess": "METADATA"
+      }
+    }
+  }
+}
