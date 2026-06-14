@@ -454,6 +454,64 @@ def set_stamp_policy(payload: StampPolicyIn,
     return pol
 
 
+# ---------- Google Workspace auto-stamp ----------
+@router.get("/gdrive")
+def get_gdrive(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    from ..models import GoogleWorkspaceConfig
+    cfg = db.query(GoogleWorkspaceConfig).filter(GoogleWorkspaceConfig.tenant_id == user.tenant_id).first()
+    if not cfg:
+        return {"enabled": False, "service_account_configured": False, "impersonate_subject": "",
+                "placement": "header", "client_email": "", "last_scan": None, "last_status": ""}
+    client_email = ""
+    if cfg.service_account_json:
+        try:
+            client_email = json.loads(cfg.service_account_json).get("client_email", "")
+        except ValueError:
+            client_email = "(invalid JSON)"
+    return {
+        "enabled": cfg.enabled,
+        "service_account_configured": bool(cfg.service_account_json),
+        "client_email": client_email,
+        "impersonate_subject": cfg.impersonate_subject,
+        "placement": cfg.placement,
+        "last_scan": cfg.last_scan.isoformat() if cfg.last_scan else None,
+        "last_status": cfg.last_status,
+    }
+
+
+@router.put("/gdrive")
+def set_gdrive(payload: dict, user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    from ..models import GoogleWorkspaceConfig
+    cfg = db.query(GoogleWorkspaceConfig).filter(GoogleWorkspaceConfig.tenant_id == user.tenant_id).first()
+    if not cfg:
+        cfg = GoogleWorkspaceConfig(tenant_id=user.tenant_id)
+        db.add(cfg)
+    sa = str(payload.get("service_account_json", "")).strip()
+    if sa:  # keep existing key if the field is left blank on save
+        try:
+            json.loads(sa)
+        except ValueError:
+            raise HTTPException(400, "Service account JSON is not valid JSON")
+        cfg.service_account_json = sa
+    cfg.impersonate_subject = str(payload.get("impersonate_subject", cfg.impersonate_subject)).strip()
+    cfg.placement = payload.get("placement", cfg.placement)
+    cfg.enabled = bool(payload.get("enabled", cfg.enabled))
+    db.add(AuditLog(tenant_id=user.tenant_id, user_id=user.id, action="gdrive.configured",
+                    detail=f"enabled={cfg.enabled}"))
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/gdrive/scan")
+def scan_gdrive(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    from ..integrations import google_drive
+    from ..models import GoogleWorkspaceConfig
+    cfg = db.query(GoogleWorkspaceConfig).filter(GoogleWorkspaceConfig.tenant_id == user.tenant_id).first()
+    if not cfg or not cfg.service_account_json:
+        raise HTTPException(400, "Configure the Google service account first")
+    return google_drive.scan_tenant(db, cfg)
+
+
 # ---------- Audit log ----------
 @router.get("/audit")
 def audit_log(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):

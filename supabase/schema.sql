@@ -121,6 +121,28 @@ create table if not exists assets (
     classified_at   timestamptz not null default now()
 );
 
+create table if not exists google_workspace_config (
+    id                   serial primary key,
+    tenant_id            integer not null unique references tenants(id),
+    enabled              boolean not null default false,
+    service_account_json text not null default '',
+    impersonate_subject  varchar(255) not null default '',
+    placement            varchar(10) not null default 'header',
+    last_scan            timestamptz,
+    last_status          varchar(255) not null default ''
+);
+
+create table if not exists stamped_docs (
+    id         serial primary key,
+    tenant_id  integer not null references tenants(id),
+    provider   varchar(20) not null default 'google',
+    file_id    varchar(120) not null,
+    label      varchar(60) not null default '',
+    stamped_at timestamptz not null default now()
+);
+
+create index if not exists ix_stamped_docs_tenant on stamped_docs(tenant_id, provider, file_id);
+
 create table if not exists stamp_policy (
     id            serial primary key,
     tenant_id     integer not null unique references tenants(id),

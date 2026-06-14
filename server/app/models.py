@@ -172,6 +172,30 @@ class PaymentGatewayConfig(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class GoogleWorkspaceConfig(Base):
+    __tablename__ = "google_workspace_config"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), unique=True, nullable=False)
+    enabled = Column(Boolean, default=False)
+    service_account_json = Column(Text, default="")   # the service account key (JSON)
+    impersonate_subject = Column(String(255), default="")  # an admin user to act as (domain-wide delegation)
+    placement = Column(String(10), default="header")  # header | footer (top/bottom of doc body)
+    last_scan = Column(DateTime, nullable=True)
+    last_status = Column(String(255), default="")
+
+
+class StampedDoc(Base):
+    __tablename__ = "stamped_docs"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    provider = Column(String(20), default="google")   # google | microsoft
+    file_id = Column(String(120), nullable=False)
+    label = Column(String(60), default="")
+    stamped_at = Column(DateTime, default=utcnow)
+
+
 class StampPolicy(Base):
     __tablename__ = "stamp_policy"
 

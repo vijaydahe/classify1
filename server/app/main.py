@@ -104,6 +104,31 @@ def submit_contact(payload: ContactIn, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@app.get("/api/cron/gdrive-scan", tags=["meta"])
+def cron_gdrive_scan(request: Request, db: Session = Depends(get_db)):
+    """Scheduled auto-stamp pass over every tenant with Google Workspace enabled.
+
+    Protected by CLASSIFYHUB_CRON_SECRET (header X-Cron-Secret or ?secret=).
+    Triggered by Vercel Cron (see vercel.json).
+    """
+    # Vercel Cron sends "Authorization: Bearer $CRON_SECRET" automatically.
+    secret = os.environ.get("CRON_SECRET") or os.environ.get("CLASSIFYHUB_CRON_SECRET", "")
+    auth = request.headers.get("Authorization", "")
+    provided = auth[7:] if auth.startswith("Bearer ") else request.query_params.get("secret", "")
+    if not secret or provided != secret:
+        return Response(status_code=401, content="unauthorized")
+    from .integrations import google_drive
+    from .models import GoogleWorkspaceConfig
+    results = []
+    configs = (db.query(GoogleWorkspaceConfig)
+               .filter(GoogleWorkspaceConfig.enabled.is_(True)).all())
+    for cfg in configs:
+        if cfg.service_account_json:
+            r = google_drive.scan_tenant(db, cfg)
+            results.append({"tenant_id": cfg.tenant_id, **r})
+    return {"scanned_tenants": len(results), "results": results}
+
+
 @app.get("/api/health", tags=["meta"])
 def health():
     return {"status": "ok", "app": APP_NAME, "version": APP_VERSION}
