@@ -25,9 +25,9 @@ that it runs automatically (hourly) and on-demand from ClassifyHub.
 1. <https://admin.google.com> → **Security → Access and data control → API
    controls → Manage Domain Wide Delegation**.
 2. **Add new**. Client ID = the service account's **Unique ID** from step 1.5.
-3. OAuth scopes (comma-separated):
+3. OAuth scopes (comma-separated) — covers Docs, Sheets and Slides:
    ```
-   https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/documents
+   https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/documents,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/presentations
    ```
 4. **Authorize.**
 

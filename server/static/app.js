@@ -637,6 +637,21 @@ const views = {
           no user action. The agent picks up the policy on its next scan cycle.</p>
       </div>
       <div class="panel" style="max-width:640px">
+        <h3>Coverage — automatic stamping by type</h3>
+        <table>
+          <tr><th>Type</th><th>Google</th><th>Microsoft 365</th><th>Endpoint agent</th></tr>
+          <tr><td>Word / Google Doc</td><td>✅ Docs</td><td>✅ .docx</td><td>✅ .docx</td></tr>
+          <tr><td>Excel / Google Sheet</td><td>✅ Sheets</td><td>✅ .xlsx</td><td>—</td></tr>
+          <tr><td>PowerPoint / Google Slides</td><td>✅ Slides</td><td>✅ .pptx</td><td>—</td></tr>
+          <tr><td>PDF</td><td>—</td><td>—</td><td>✅ .pdf</td></tr>
+          <tr><td>Text (.txt/.md/.csv)</td><td>—</td><td>—</td><td>✅</td></tr>
+          <tr><td>Email</td><td colspan="3">Mail-flow rule (auto footer) + Outlook add-in blocks unclassified send — see EMAIL_STAMPING.md</td></tr>
+        </table>
+        <p class="muted" style="font-size:12px;margin-top:8px">
+          Cloud scanners stamp documents stored in Drive/OneDrive; the agent stamps files on devices.
+          Email is stamped by mail-flow rules (Gmail compliance / Exchange transport), not file APIs.</p>
+      </div>
+      <div class="panel" style="max-width:640px">
         <h3>Enforce in Google Workspace</h3>
         <p class="muted" style="font-size:13.5px;margin-bottom:10px">
           A Google Workspace add-on stamps Google Docs, Sheets, Slides and Gmail (subject + body at
