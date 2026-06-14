@@ -174,12 +174,14 @@ func cycle(ctx context.Context, cfg *config.Config, st *state.Store, api *client
 		log.Printf("enrolled as endpoint %d", id)
 	}
 
-	rules, err := api.Rules(apiKey)
+	rules, stampCfg, err := api.Rules(apiKey)
 	if err != nil {
 		// Offline: fall back to the cached rule set so scanning + buffering
 		// continue. Only give up if we've never successfully fetched rules.
+		// Stamping is skipped offline (we only stamp on a fresh, trusted policy).
 		if raw := st.CachedRules(); len(raw) > 0 {
 			_ = json.Unmarshal(raw, &rules)
+			stampCfg = nil
 			log.Printf("fetch rules failed (%v); using %d cached rules", err, len(rules))
 		} else {
 			log.Printf("fetch rules failed and no cache yet: %v", err)
@@ -191,7 +193,7 @@ func cycle(ctx context.Context, cfg *config.Config, st *state.Store, api *client
 	}
 
 	t0 := time.Now()
-	engine := scan.NewEngine(rules, cfg.MaxFiles, cfg.MaxContentBytes, cfg.Workers)
+	engine := scan.NewEngine(rules, cfg.MaxFiles, cfg.MaxContentBytes, cfg.Workers, stampCfg)
 	assets := engine.Run(cfg.ScanPaths, st.Seen)
 	if len(assets) > 0 {
 		if err := st.Enqueue(assets); err != nil {

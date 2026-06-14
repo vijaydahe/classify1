@@ -512,6 +512,54 @@ def scan_gdrive(user: User = Depends(require_tenant_admin), db: Session = Depend
     return google_drive.scan_tenant(db, cfg)
 
 
+# ---------- Microsoft 365 auto-stamp ----------
+@router.get("/m365")
+def get_m365(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    from ..models import MicrosoftConfig
+    cfg = db.query(MicrosoftConfig).filter(MicrosoftConfig.tenant_id == user.tenant_id).first()
+    if not cfg:
+        return {"enabled": False, "azure_tenant_id": "", "client_id": "", "secret_configured": False,
+                "drive_user": "", "placement": "footer", "last_scan": None, "last_status": ""}
+    return {
+        "enabled": cfg.enabled, "azure_tenant_id": cfg.azure_tenant_id, "client_id": cfg.client_id,
+        "secret_configured": bool(cfg.client_secret), "drive_user": cfg.drive_user,
+        "placement": cfg.placement,
+        "last_scan": cfg.last_scan.isoformat() if cfg.last_scan else None,
+        "last_status": cfg.last_status,
+    }
+
+
+@router.put("/m365")
+def set_m365(payload: dict, user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    from ..models import MicrosoftConfig
+    cfg = db.query(MicrosoftConfig).filter(MicrosoftConfig.tenant_id == user.tenant_id).first()
+    if not cfg:
+        cfg = MicrosoftConfig(tenant_id=user.tenant_id)
+        db.add(cfg)
+    cfg.azure_tenant_id = str(payload.get("azure_tenant_id", cfg.azure_tenant_id)).strip()
+    cfg.client_id = str(payload.get("client_id", cfg.client_id)).strip()
+    secret = str(payload.get("client_secret", "")).strip()
+    if secret:  # keep existing if left blank
+        cfg.client_secret = secret
+    cfg.drive_user = str(payload.get("drive_user", cfg.drive_user)).strip()
+    cfg.placement = payload.get("placement", cfg.placement)
+    cfg.enabled = bool(payload.get("enabled", cfg.enabled))
+    db.add(AuditLog(tenant_id=user.tenant_id, user_id=user.id, action="m365.configured",
+                    detail=f"enabled={cfg.enabled}"))
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/m365/scan")
+def scan_m365(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):
+    from ..integrations import microsoft365
+    from ..models import MicrosoftConfig
+    cfg = db.query(MicrosoftConfig).filter(MicrosoftConfig.tenant_id == user.tenant_id).first()
+    if not cfg or not cfg.client_secret:
+        raise HTTPException(400, "Configure the Microsoft 365 app registration first")
+    return microsoft365.scan_tenant(db, cfg)
+
+
 # ---------- Audit log ----------
 @router.get("/audit")
 def audit_log(user: User = Depends(require_tenant_admin), db: Session = Depends(get_db)):

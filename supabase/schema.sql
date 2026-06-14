@@ -132,6 +132,19 @@ create table if not exists google_workspace_config (
     last_status          varchar(255) not null default ''
 );
 
+create table if not exists microsoft_config (
+    id              serial primary key,
+    tenant_id       integer not null unique references tenants(id),
+    enabled         boolean not null default false,
+    azure_tenant_id varchar(120) not null default '',
+    client_id       varchar(120) not null default '',
+    client_secret   varchar(255) not null default '',
+    drive_user      varchar(255) not null default '',
+    placement       varchar(10) not null default 'footer',
+    last_scan       timestamptz,
+    last_status     varchar(255) not null default ''
+);
+
 create table if not exists stamped_docs (
     id         serial primary key,
     tenant_id  integer not null references tenants(id),

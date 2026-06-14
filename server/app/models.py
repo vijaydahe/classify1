@@ -185,6 +185,21 @@ class GoogleWorkspaceConfig(Base):
     last_status = Column(String(255), default="")
 
 
+class MicrosoftConfig(Base):
+    __tablename__ = "microsoft_config"
+
+    id = Column(Integer, primary_key=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), unique=True, nullable=False)
+    enabled = Column(Boolean, default=False)
+    azure_tenant_id = Column(String(120), default="")
+    client_id = Column(String(120), default="")
+    client_secret = Column(String(255), default="")
+    drive_user = Column(String(255), default="")   # the user whose OneDrive to scan
+    placement = Column(String(10), default="footer")
+    last_scan = Column(DateTime, nullable=True)
+    last_status = Column(String(255), default="")
+
+
 class StampedDoc(Base):
     __tablename__ = "stamped_docs"
 

@@ -91,13 +91,22 @@ func (c *Client) Enroll(token, hostname, platform string) (apiKey string, endpoi
 	return resp.APIKey, resp.EndpointID, err
 }
 
-// Rules fetches the tenant's enabled classification rules.
-func (c *Client) Rules(apiKey string) ([]Rule, error) {
+// StampConfig is the tenant's document-stamping policy, returned with the rules.
+type StampConfig struct {
+	Enabled      bool              `json:"enabled"`
+	Placement    string            `json:"placement"`
+	TextTemplate string            `json:"text_template"`
+	ColorByLabel map[string]string `json:"color_by_label"`
+}
+
+// Rules fetches the tenant's enabled classification rules and stamp policy.
+func (c *Client) Rules(apiKey string) ([]Rule, *StampConfig, error) {
 	var resp struct {
-		Rules []Rule `json:"rules"`
+		Rules []Rule      `json:"rules"`
+		Stamp StampConfig `json:"stamp"`
 	}
 	err := c.do(http.MethodGet, "/api/agent/rules", apiKey, nil, &resp)
-	return resp.Rules, err
+	return resp.Rules, &resp.Stamp, err
 }
 
 // Report delivers a batch of assets; returns how many the server accepted.

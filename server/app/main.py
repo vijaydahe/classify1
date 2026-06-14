@@ -117,15 +117,17 @@ def cron_gdrive_scan(request: Request, db: Session = Depends(get_db)):
     provided = auth[7:] if auth.startswith("Bearer ") else request.query_params.get("secret", "")
     if not secret or provided != secret:
         return Response(status_code=401, content="unauthorized")
-    from .integrations import google_drive
-    from .models import GoogleWorkspaceConfig
+    from .integrations import google_drive, microsoft365
+    from .models import GoogleWorkspaceConfig, MicrosoftConfig
     results = []
-    configs = (db.query(GoogleWorkspaceConfig)
-               .filter(GoogleWorkspaceConfig.enabled.is_(True)).all())
-    for cfg in configs:
+    for cfg in db.query(GoogleWorkspaceConfig).filter(GoogleWorkspaceConfig.enabled.is_(True)).all():
         if cfg.service_account_json:
-            r = google_drive.scan_tenant(db, cfg)
-            results.append({"tenant_id": cfg.tenant_id, **r})
+            results.append({"tenant_id": cfg.tenant_id, "provider": "google",
+                            **google_drive.scan_tenant(db, cfg)})
+    for cfg in db.query(MicrosoftConfig).filter(MicrosoftConfig.enabled.is_(True)).all():
+        if cfg.client_secret:
+            results.append({"tenant_id": cfg.tenant_id, "provider": "microsoft",
+                            **microsoft365.scan_tenant(db, cfg)})
     return {"scanned_tenants": len(results), "results": results}
 
 
