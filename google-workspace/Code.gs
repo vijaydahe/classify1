@@ -22,16 +22,25 @@ var LABELS = [
   { name: 'Restricted',   color: '#dc2626' }
 ];
 
+var DEFAULT_URL = 'https://classify1-chi.vercel.app';
+
+/** Per-user settings (ClassifyHub URL + access token) stored in UserProperties. */
+function settings() {
+  var p = PropertiesService.getUserProperties();
+  return {
+    url: (p.getProperty('CLASSIFYHUB_URL') || DEFAULT_URL).replace(/\/$/, ''),
+    token: p.getProperty('CLASSIFYHUB_TOKEN') || ''
+  };
+}
+
 /** Reads the workspace stamp policy from ClassifyHub, with safe fallbacks. */
 function policy() {
-  var props = PropertiesService.getScriptProperties();
-  var url = props.getProperty('CLASSIFYHUB_URL');
-  var token = props.getProperty('CLASSIFYHUB_TOKEN');
+  var s = settings();
   var def = { placement: 'footer', text_template: 'CLASSIFICATION: {label}' };
-  if (!url || !token) return def;
+  if (!s.token) return def;
   try {
-    var resp = UrlFetchApp.fetch(url.replace(/\/$/, '') + '/api/auth/stamp-policy', {
-      headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true
+    var resp = UrlFetchApp.fetch(s.url + '/api/auth/stamp-policy', {
+      headers: { Authorization: 'Bearer ' + s.token }, muteHttpExceptions: true
     });
     if (resp.getResponseCode() === 200) {
       var p = JSON.parse(resp.getContentText());
@@ -41,17 +50,53 @@ function policy() {
   return def;
 }
 
+/** Classifies text against the tenant's ClassifyHub rules (no storage). */
+function classifyByRules(name, content) {
+  var s = settings();
+  if (!s.token) return null;
+  try {
+    var resp = UrlFetchApp.fetch(s.url + '/api/assets/classify-preview', {
+      method: 'post', contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + s.token },
+      payload: JSON.stringify({ name: name || 'document', content: (content || '').slice(0, 60000) }),
+      muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() === 200) {
+      var r = JSON.parse(resp.getContentText());
+      return r.label ? { name: r.label.name, color: r.label.color, rules: r.matched_rules } : null;
+    }
+  } catch (e) {}
+  return null;
+}
+
 function stampText(label) {
   return policy().text_template.replace('{label}', label);
 }
 
 /** Home card shown in Docs/Sheets/Slides side panel. */
 function onHomepage(e) {
-  var host = (e && e.hostApp) || '';
-  var section = CardService.newCardSection()
-    .setHeader('Stamp this ' + (host === 'gmail' ? 'email' : 'document') + ' classification');
+  var s = settings();
+  var builder = CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader().setTitle('ClassifyHub'));
+
+  // Auto-classify (uses the rules configured in the ClassifyHub admin console).
+  var auto = CardService.newCardSection().setHeader('Auto-classify from content');
+  if (s.token) {
+    auto.addWidget(CardService.newTextButton()
+      .setText('Suggest &amp; stamp per ClassifyHub rules')
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setBackgroundColor('#4f46e5')
+      .setOnClickAction(CardService.newAction().setFunctionName('autoClassify')));
+  } else {
+    auto.addWidget(CardService.newTextParagraph().setText(
+      '<font color="#b91c1c">Connect to ClassifyHub below to enable rule-based auto-classification.</font>'));
+  }
+  builder.addSection(auto);
+
+  // Manual override.
+  var manual = CardService.newCardSection().setHeader('Or stamp manually');
   LABELS.forEach(function (l) {
-    section.addWidget(CardService.newTextButton()
+    manual.addWidget(CardService.newTextButton()
       .setText(l.name)
       .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
       .setBackgroundColor(l.color)
@@ -59,12 +104,80 @@ function onHomepage(e) {
         .setFunctionName('stampActive')
         .setParameters({ label: l.name, color: l.color })));
   });
-  section.addWidget(CardService.newTextParagraph().setText(
-    '<font color="#64748b">Stamps the classification into this document. ' +
-    'Google does not allow blocking save, so follow your organization policy.</font>'));
-  return CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('ClassifyHub'))
-    .addSection(section).build();
+  builder.addSection(manual);
+
+  // Connection settings.
+  var conn = CardService.newCardSection().setHeader('ClassifyHub connection').setCollapsible(true);
+  conn.addWidget(CardService.newTextInput().setFieldName('url').setTitle('ClassifyHub URL')
+    .setValue(s.url));
+  conn.addWidget(CardService.newTextInput().setFieldName('token').setTitle('Access token')
+    .setValue(s.token ? '••••••• (saved)' : ''));
+  conn.addWidget(CardService.newTextParagraph().setText(
+    '<font color="#64748b">Get the token from the ClassifyHub web app: Admin Console → Document Stamping → "Add-in token".</font>'));
+  conn.addWidget(CardService.newTextButton().setText('Save connection')
+    .setOnClickAction(CardService.newAction().setFunctionName('saveSettings')));
+  builder.addSection(conn);
+
+  return builder.build();
+}
+
+/** Persists the ClassifyHub URL + token entered in the connection section. */
+function saveSettings(e) {
+  var f = e.formInput || {};
+  var p = PropertiesService.getUserProperties();
+  if (f.url) p.setProperty('CLASSIFYHUB_URL', f.url.trim());
+  if (f.token && f.token.indexOf('•') === -1) p.setProperty('CLASSIFYHUB_TOKEN', f.token.trim());
+  return CardService.newActionResponseBuilder()
+    .setNotification(CardService.newNotification().setText('ClassifyHub connection saved.'))
+    .setNavigation(CardService.newNavigation().updateCard(onHomepage(e)))
+    .build();
+}
+
+/** Reads the active document's text, classifies it by rules, and stamps it. */
+function autoClassify(e) {
+  var host = (e.commonEventObject && e.commonEventObject.hostApp) || detectHost();
+  var text = readActiveText(host);
+  if (!text) return notify('No readable text found to classify.');
+  var name = activeName(host);
+  var label = classifyByRules(name, text);
+  if (!label) return notify('Could not auto-classify (check the ClassifyHub connection / token).');
+  var msg;
+  if (host === 'docs') msg = stampDoc(label.name, label.color);
+  else if (host === 'sheets') msg = stampSheet(label.name, label.color);
+  else if (host === 'slides') msg = stampSlides(label.name, label.color);
+  else return notify('Open a Doc, Sheet, or Slides to auto-classify.');
+  return notify('Auto-classified as ' + label.name +
+    (label.rules ? ' (' + label.rules + ')' : '') + '. ' + msg);
+}
+
+/** Pulls visible text from the active Doc/Sheet/Slides. */
+function readActiveText(host) {
+  try {
+    if (host === 'docs') return DocumentApp.getActiveDocument().getBody().getText();
+    if (host === 'sheets') {
+      var vals = SpreadsheetApp.getActiveSpreadsheet().getSheets().map(function (sh) {
+        return sh.getDataRange().getValues().map(function (row) { return row.join(' '); }).join(' ');
+      });
+      return vals.join(' ');
+    }
+    if (host === 'slides') {
+      return SlidesApp.getActivePresentation().getSlides().map(function (sl) {
+        return sl.getShapes().map(function (sh) {
+          try { return sh.getText().asString(); } catch (e2) { return ''; }
+        }).join(' ');
+      }).join(' ');
+    }
+  } catch (e) {}
+  return '';
+}
+
+function activeName(host) {
+  try {
+    if (host === 'docs') return DocumentApp.getActiveDocument().getName();
+    if (host === 'sheets') return SpreadsheetApp.getActiveSpreadsheet().getName();
+    if (host === 'slides') return SlidesApp.getActivePresentation().getName();
+  } catch (e) {}
+  return 'document';
 }
 
 /** Routes a stamp action to the right host. */

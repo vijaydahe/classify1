@@ -13,8 +13,20 @@ Google Workspace Add-on.
 | Slides | footer banner text box on every slide |
 | Gmail | `[CLASSIFICATION]` in the subject + a banner line in the body (at compose) |
 
-Users open the side panel (or, in Gmail, the compose add-on), click a level,
-and it's stamped instantly.
+Users open the side panel (or, in Gmail, the compose add-on), and either:
+
+- **Auto-classify** — "Suggest & stamp per ClassifyHub rules" reads the document
+  text, classifies it against the **rules you configured in the ClassifyHub
+  admin console**, and stamps the result. Requires connecting the add-on (below).
+- **Manual** — click one of the four levels to stamp it directly.
+
+## Connect the add-on (enables auto-classify)
+
+In the side panel, expand **ClassifyHub connection**, paste your **add-in token**
+— copy it from the ClassifyHub web app under *Admin Console → Document Stamping →
+Add-in token* — and **Save**. The URL defaults to the live deployment. The token
+identifies you for the session; auto-classification calls the read-only
+`/api/assets/classify-preview` endpoint (no asset is stored, no quota used).
 
 ## Honest enforcement note
 
