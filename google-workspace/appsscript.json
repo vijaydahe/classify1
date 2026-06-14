@@ -14,7 +14,7 @@
   "addOns": {
     "common": {
       "name": "ClassifyHub",
-      "logoUrl": "https://YOUR-APP-URL/static/office-addin/icon-128.png",
+      "logoUrl": "https://classify1-chi.vercel.app/static/office-addin/icon-128.png",
       "useLocaleFromApp": true,
       "homepageTrigger": { "runFunction": "onHomepage" }
     },
