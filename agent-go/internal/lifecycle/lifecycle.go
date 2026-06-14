@@ -105,7 +105,7 @@ func ScanOnce() error {
 	if err != nil {
 		return err
 	}
-	st, err := state.Open(filepath.Join(config.InstallDir(), "state.json"))
+	st, err := state.Open(filepath.Join(config.DataDir(), "state.json"))
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func ScanOnce() error {
 
 // logPath returns the agent's log file inside the install directory.
 func logPath() string {
-	return filepath.Join(config.InstallDir(), "agent.log")
+	return filepath.Join(config.DataDir(), "agent.log")
 }
 
 // runLoop is the heart of the daemon: enroll, then scan → buffer → deliver on a
@@ -131,7 +131,7 @@ func runLoop(ctx context.Context) {
 		log.Printf("FATAL config: %v", err)
 		return
 	}
-	st, err := state.Open(filepath.Join(config.InstallDir(), "state.json"))
+	st, err := state.Open(filepath.Join(config.DataDir(), "state.json"))
 	if err != nil {
 		log.Printf("FATAL state: %v", err)
 		return
