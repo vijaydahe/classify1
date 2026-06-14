@@ -628,6 +628,14 @@ const views = {
         </div>
       </div>
       <div class="panel" style="max-width:640px" id="gdrive-panel"></div>
+      <div class="panel" style="max-width:640px" id="m365-panel"></div>
+      <div class="panel" style="max-width:640px">
+        <h3>🖥️ Automatic stamping — endpoint agent (files on devices)</h3>
+        <p class="muted" style="font-size:13.5px">
+          When this policy is <strong>enabled</strong> (toggle at the top), the installed Windows/macOS
+          agent automatically stamps Word (.docx) and text files it scans, in place, by your rules —
+          no user action. The agent picks up the policy on its next scan cycle.</p>
+      </div>
       <div class="panel" style="max-width:640px">
         <h3>Enforce in Google Workspace</h3>
         <p class="muted" style="font-size:13.5px;margin-bottom:10px">
@@ -658,6 +666,7 @@ const views = {
       document.getElementById(id).addEventListener("input", stampPreview));
     stampPreview();
     loadGdrive();
+    loadM365();
   },
 
   async billing() {
@@ -983,6 +992,63 @@ async function scanGdrive() {
     const r = await api("/api/admin/gdrive/scan", { method: "POST" });
     flash("Scan result: " + r.status);
     loadGdrive();
+  } catch (e) { flash(e.message, "err"); }
+}
+
+async function loadM365() {
+  const box = document.getElementById("m365-panel");
+  if (!box) return;
+  let g = {};
+  try { g = await api("/api/admin/m365"); } catch (e) { return; }
+  const info = g.last_scan
+    ? `Last scan: ${g.last_scan.replace("T", " ").slice(0, 16)} — ${esc(g.last_status)}`
+    : "Not scanned yet.";
+  box.innerHTML = `
+    <h3>🔷 Automatic stamping — Microsoft 365 / OneDrive (server-side)</h3>
+    <p class="muted" style="font-size:13.5px;margin-bottom:12px">
+      Stamps Word documents in a user's OneDrive automatically, by your rules, via Microsoft Graph.
+      Requires an Entra (Azure AD) app registration with admin-consented application permissions
+      (Files.ReadWrite.All). See <span class="mono">MICROSOFT365_AUTO_STAMP_SETUP.md</span>.</p>
+    <div class="slider-row"><label>Enabled</label>
+      <input type="checkbox" id="ms-enabled" ${g.enabled ? "checked" : ""} style="width:auto;flex:0"></div>
+    <div class="row">
+      <div><label>Directory (tenant) ID</label><input id="ms-tenant" value="${esc(g.azure_tenant_id || "")}"></div>
+      <div><label>Application (client) ID</label><input id="ms-client" value="${esc(g.client_id || "")}"></div>
+    </div>
+    <label>Client secret${g.secret_configured ? ' <span class="muted">(saved — leave blank to keep)</span>' : ""}</label>
+    <input id="ms-secret" type="password" placeholder="${g.secret_configured ? "•••••••" : "paste the app client secret"}">
+    <label>User whose OneDrive to scan</label>
+    <input id="ms-user" value="${esc(g.drive_user || "")}" placeholder="user@yourdomain.com">
+    <div class="row">
+      <button class="fixed" onclick="saveM365()">Save</button>
+      <button class="fixed btn-ghost" onclick="scanM365()">Scan &amp; stamp now</button>
+      <span style="flex:1"></span>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin-top:10px">${esc(info)} Once enabled, ClassifyHub also rescans automatically every hour.</p>
+  `;
+}
+
+async function saveM365() {
+  try {
+    await api("/api/admin/m365", {
+      method: "PUT",
+      body: {
+        enabled: document.getElementById("ms-enabled").checked,
+        azure_tenant_id: document.getElementById("ms-tenant").value.trim(),
+        client_id: document.getElementById("ms-client").value.trim(),
+        client_secret: document.getElementById("ms-secret").value.trim(),
+        drive_user: document.getElementById("ms-user").value.trim(),
+      },
+    });
+    flash("Microsoft 365 settings saved"); loadM365();
+  } catch (e) { flash(e.message, "err"); }
+}
+
+async function scanM365() {
+  flash("Scanning OneDrive…");
+  try {
+    const r = await api("/api/admin/m365/scan", { method: "POST" });
+    flash("Scan result: " + r.status); loadM365();
   } catch (e) { flash(e.message, "err"); }
 }
 

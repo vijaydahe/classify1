@@ -47,7 +47,16 @@ def enroll(payload: AgentEnrollRequest, db: Session = Depends(get_db)):
 def get_rules(endpoint: Endpoint = Depends(get_agent_endpoint), db: Session = Depends(get_db)):
     endpoint.last_seen = datetime.now(timezone.utc)
     db.commit()
-    return {"rules": export_rules(db, endpoint.tenant_id)}
+    from ..models import StampPolicy
+    pol = db.query(StampPolicy).filter(StampPolicy.tenant_id == endpoint.tenant_id).first()
+    stamp = {
+        "enabled": bool(pol.enabled) if pol else False,
+        "placement": pol.placement if pol else "footer",
+        "text_template": pol.text_template if pol else "CLASSIFICATION: {label}",
+        "color_by_label": {l.name: l.color for l in db.query(ClassificationLabel)
+                           .filter(ClassificationLabel.tenant_id == endpoint.tenant_id).all()},
+    }
+    return {"rules": export_rules(db, endpoint.tenant_id), "stamp": stamp}
 
 
 @router.post("/report")

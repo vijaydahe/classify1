@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/classifyhub/agent/internal/client"
+	"github.com/classifyhub/agent/internal/stamp"
 	"github.com/classifyhub/agent/internal/state"
 )
 
@@ -44,11 +45,12 @@ type Engine struct {
 	maxFiles        int
 	maxContentBytes int
 	workers         int
+	stamp           *client.StampConfig
 }
 
 // NewEngine pre-compiles rules once so per-file matching is allocation-light.
-func NewEngine(rules []client.Rule, maxFiles, maxContentBytes, workers int) *Engine {
-	e := &Engine{maxFiles: maxFiles, maxContentBytes: maxContentBytes, workers: workers}
+func NewEngine(rules []client.Rule, maxFiles, maxContentBytes, workers int, stampCfg *client.StampConfig) *Engine {
+	e := &Engine{maxFiles: maxFiles, maxContentBytes: maxContentBytes, workers: workers, stamp: stampCfg}
 	for _, r := range rules {
 		cr := compiledRule{name: r.Name, label: r.Label, level: r.Level, priority: r.Priority}
 		if r.Type == "regex" {
@@ -141,6 +143,15 @@ func (e *Engine) process(path string) (state.Asset, bool) {
 		content = string(buf[:n])
 	}
 	label, matched := e.classify(filepath.Base(path), content)
+	// Auto-stamp the document in place if the admin's policy is on.
+	if label != "" && e.stamp != nil && e.stamp.Enabled && stamp.Supported(path) {
+		text := strings.Replace(e.stamp.TextTemplate, "{label}", label, 1)
+		color := e.stamp.ColorByLabel[label]
+		if color == "" {
+			color = "#dc2626"
+		}
+		_, _ = stamp.Stamp(path, text, color) // best-effort; never fail the scan
+	}
 	excerpt := content
 	if len(excerpt) > 300 {
 		excerpt = excerpt[:300]
