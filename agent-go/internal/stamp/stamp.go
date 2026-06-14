@@ -9,10 +9,15 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
 const marker = "CLASSIFICATION"
@@ -22,21 +27,52 @@ var textExts = map[string]bool{".txt": true, ".md": true, ".csv": true, ".log": 
 // Supported reports whether this file type can be stamped in place.
 func Supported(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
-	return ext == ".docx" || textExts[ext]
+	return ext == ".docx" || ext == ".pdf" || textExts[ext]
 }
 
 // Stamp writes the label into the file per the placement, returning true if it
 // modified the file (false if already stamped or unsupported).
 func Stamp(path, text, colorHex string) (bool, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".docx":
+	ext := strings.ToLower(filepath.Ext(path))
+	switch {
+	case ext == ".docx":
 		return stampDocx(path, text, colorHex)
-	default:
-		if textExts[strings.ToLower(filepath.Ext(path))] {
-			return stampText(path, text)
-		}
+	case ext == ".pdf":
+		return stampPDF(path, text, colorHex)
+	case textExts[ext]:
+		return stampText(path, text)
 	}
 	return false, nil
+}
+
+// stampPDF adds a top-centre classification watermark on every page.
+func stampPDF(path, text, colorHex string) (bool, error) {
+	if has, err := api.HasWatermarksFile(path, nil); err == nil && has {
+		return false, nil // already watermarked — keep idempotent
+	}
+	r, g, b := hexFloats(colorHex)
+	desc := fmt.Sprintf("font:Helvetica, points:10, color:%.3f %.3f %.3f, pos:tc, rot:0, op:1, scale:1 abs", r, g, b)
+	wm, err := api.TextWatermark(text, desc, true, false, types.POINTS)
+	if err != nil {
+		return false, err
+	}
+	tmp := path + ".chtmp"
+	if err := api.AddWatermarksFile(path, tmp, nil, wm, nil); err != nil {
+		os.Remove(tmp)
+		return false, err
+	}
+	return true, os.Rename(tmp, path)
+}
+
+func hexFloats(h string) (float64, float64, float64) {
+	h = strings.TrimPrefix(h, "#")
+	if len(h) != 6 {
+		return 0.86, 0.15, 0.15
+	}
+	r, _ := strconv.ParseInt(h[0:2], 16, 0)
+	g, _ := strconv.ParseInt(h[2:4], 16, 0)
+	b, _ := strconv.ParseInt(h[4:6], 16, 0)
+	return float64(r) / 255, float64(g) / 255, float64(b) / 255
 }
 
 func stampText(path, text string) (bool, error) {

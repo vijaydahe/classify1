@@ -54,23 +54,16 @@ def get_token(azure_tenant: str, client_id: str, client_secret: str) -> str:
     return resp["access_token"]
 
 
-def list_word_docs(token: str, drive_user: str) -> list[dict]:
-    """Lists .docx files in the target user's OneDrive (newest first)."""
-    url = (f"{GRAPH}/users/{urllib.parse.quote(drive_user)}/drive/root/search(q='.docx')"
-           f"?$top={MAX_DOCS_PER_SCAN}&$select=id,name,file")
-    items = _http(url, token=token).get("value", [])
-    return [i for i in items if i.get("name", "").lower().endswith(".docx")]
-
-
-def download(token: str, drive_user: str, item_id: str) -> bytes:
-    url = f"{GRAPH}/users/{urllib.parse.quote(drive_user)}/drive/items/{item_id}/content"
-    return _http(url, token=token, raw=True)
-
-
-def upload(token: str, drive_user: str, item_id: str, content: bytes) -> None:
-    url = f"{GRAPH}/users/{urllib.parse.quote(drive_user)}/drive/items/{item_id}/content"
-    _http(url, "PUT", token=token, data=content,
-          headers={"Content-Type": "application/octet-stream"})
+def list_office_docs(token: str, drive_user: str) -> list[dict]:
+    """Lists Word/Excel/PowerPoint files in the target user's OneDrive."""
+    found = []
+    for ext in (".docx", ".xlsx", ".pptx"):
+        url = (f"{GRAPH}/users/{urllib.parse.quote(drive_user)}/drive/root/search(q='{ext}')"
+               f"?$top={MAX_DOCS_PER_SCAN}&$select=id,name,file")
+        for i in _http(url, token=token).get("value", []):
+            if i.get("name", "").lower().endswith(ext):
+                found.append(i)
+    return found
 
 
 def stamp_docx_bytes(data: bytes, text: str, color_hex: str, placement: str) -> bytes:
@@ -78,8 +71,7 @@ def stamp_docx_bytes(data: bytes, text: str, color_hex: str, placement: str) -> 
     from docx import Document
     from docx.shared import Pt, RGBColor
 
-    h = color_hex.lstrip("#")
-    rgb = RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    rgb = _rgb(color_hex)
     doc = Document(io.BytesIO(data))
     for section in doc.sections:
         container = section.header if placement == "header" else section.footer
@@ -96,14 +88,89 @@ def stamp_docx_bytes(data: bytes, text: str, color_hex: str, placement: str) -> 
     return out.getvalue()
 
 
-def doc_text(data: bytes) -> str:
-    """Extracts plain text from a .docx for classification."""
+def stamp_xlsx_bytes(data: bytes, text: str, color_hex: str, placement: str) -> bytes:
+    """Stamps an .xlsx into the print header/footer of every sheet (idempotent)."""
+    from openpyxl import load_workbook
+    wb = load_workbook(io.BytesIO(data))
+    marker = "&\"-,Bold\"&K" + color_hex.lstrip("#").upper() + text
+    for ws in wb.worksheets:
+        target = ws.oddHeader.center if placement == "header" else ws.oddFooter.center
+        target.text = marker
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def stamp_pptx_bytes(data: bytes, text: str, color_hex: str, placement: str) -> bytes:
+    """Stamps a .pptx with a banner text box on every slide (idempotent)."""
+    from pptx import Presentation
+    from pptx.util import Emu, Pt
+    from pptx.dml.color import RGBColor
+
+    prs = Presentation(io.BytesIO(data))
+    h = color_hex.lstrip("#")
+    rgb = RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    for slide in prs.slides:
+        if any(getattr(s, "has_text_frame", False) and "CLASSIFICATION" in s.text_frame.text
+               for s in slide.shapes):
+            continue
+        top = Emu(120000) if placement == "header" else prs.slide_height - Emu(420000)
+        box = slide.shapes.add_textbox(Emu(120000), top, prs.slide_width - Emu(240000), Emu(360000))
+        run = box.text_frame.paragraphs[0].add_run()
+        run.text = text
+        run.font.bold = True
+        run.font.size = Pt(10)
+        run.font.color.rgb = rgb
+    out = io.BytesIO()
+    prs.save(out)
+    return out.getvalue()
+
+
+def stamp_office(data: bytes, name: str, text: str, color_hex: str, placement: str) -> bytes:
+    n = name.lower()
+    if n.endswith(".docx"):
+        return stamp_docx_bytes(data, text, color_hex, placement)
+    if n.endswith(".xlsx"):
+        return stamp_xlsx_bytes(data, text, color_hex, placement)
+    if n.endswith(".pptx"):
+        return stamp_pptx_bytes(data, text, color_hex, placement)
+    raise ValueError("unsupported type")
+
+
+def _rgb(color_hex: str):
+    from docx.shared import RGBColor
+    h = color_hex.lstrip("#")
+    return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def doc_text(data: bytes, name: str) -> str:
+    """Extracts plain text from a Word/Excel/PowerPoint file for classification."""
+    n = name.lower()
     try:
-        from docx import Document
-        doc = Document(io.BytesIO(data))
-        return "\n".join(p.text for p in doc.paragraphs)[:65536]
+        if n.endswith(".docx"):
+            from docx import Document
+            return "\n".join(p.text for p in Document(io.BytesIO(data)).paragraphs)[:65536]
+        if n.endswith(".xlsx"):
+            from openpyxl import load_workbook
+            wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+            parts = []
+            for ws in wb.worksheets:
+                for row in ws.iter_rows(values_only=True):
+                    parts.append(" ".join(str(c) for c in row if c is not None))
+                    if sum(len(p) for p in parts) > 65536:
+                        break
+            return " ".join(parts)[:65536]
+        if n.endswith(".pptx"):
+            from pptx import Presentation
+            out = []
+            for slide in Presentation(io.BytesIO(data)).slides:
+                for s in slide.shapes:
+                    if getattr(s, "has_text_frame", False):
+                        out.append(s.text_frame.text)
+            return "\n".join(out)[:65536]
     except Exception:
         return ""
+    return ""
 
 
 def scan_tenant(db: Session, cfg: models.MicrosoftConfig) -> dict:
@@ -122,7 +189,7 @@ def scan_tenant(db: Session, cfg: models.MicrosoftConfig) -> dict:
                     models.StampedDoc.provider == "microsoft").all()}
 
     try:
-        docs = list_word_docs(token, cfg.drive_user)
+        docs = list_office_docs(token, cfg.drive_user)
     except Exception as e:
         return _finish(db, cfg, f"error: listing OneDrive failed ({str(e)[:120]})")
 
@@ -135,12 +202,13 @@ def scan_tenant(db: Session, cfg: models.MicrosoftConfig) -> dict:
             data = download(token, cfg.drive_user, f["id"])
         except Exception:
             continue
-        text = doc_text(data)
-        label, _ = classify_text(db, cfg.tenant_id, f.get("name", ""), text)
+        name = f.get("name", "")
+        text = doc_text(data, name)
+        label, _ = classify_text(db, cfg.tenant_id, name, text)
         if not label:
             continue
         try:
-            new = stamp_docx_bytes(data, template.replace("{label}", label.name), label.color, placement)
+            new = stamp_office(data, name, template.replace("{label}", label.name), label.color, placement)
             upload(token, cfg.drive_user, f["id"], new)
             db.add(models.StampedDoc(tenant_id=cfg.tenant_id, provider="microsoft",
                                      file_id=f["id"], label=label.name))
@@ -148,7 +216,7 @@ def scan_tenant(db: Session, cfg: models.MicrosoftConfig) -> dict:
         except Exception:
             continue
     db.commit()
-    return _finish(db, cfg, f"ok: scanned {scanned} new docs, stamped {stamped}")
+    return _finish(db, cfg, f"ok: scanned {scanned} new files, stamped {stamped}")
 
 
 def _finish(db: Session, cfg: models.MicrosoftConfig, status: str) -> dict:
