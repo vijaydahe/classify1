@@ -200,6 +200,13 @@ class SubscribeRequest(BaseModel):
     card_cvc: str = ""
 
 
+class GoogleWorkspaceIn(BaseModel):
+    enabled: bool = False
+    service_account_json: str = ""
+    impersonate_subject: str = ""
+    placement: str = "header"
+
+
 class StampPolicyOut(BaseModel):
     enabled: bool
     mandatory: bool

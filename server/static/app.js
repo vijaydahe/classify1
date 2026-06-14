@@ -627,6 +627,7 @@ const views = {
           <button class="fixed btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('addin-token').value).then(()=>flash('Token copied'))">Copy</button>
         </div>
       </div>
+      <div class="panel" style="max-width:640px" id="gdrive-panel"></div>
       <div class="panel" style="max-width:640px">
         <h3>Enforce in Google Workspace</h3>
         <p class="muted" style="font-size:13.5px;margin-bottom:10px">
@@ -656,6 +657,7 @@ const views = {
     ["sp-font", "sp-size", "sp-color", "sp-template"].forEach(id =>
       document.getElementById(id).addEventListener("input", stampPreview));
     stampPreview();
+    loadGdrive();
   },
 
   async billing() {
@@ -929,6 +931,59 @@ function stampPreview() {
   box.innerHTML = `<span style="font-family:${esc(document.getElementById("sp-font").value)};
     font-size:${parseInt(document.getElementById("sp-size").value) || 10}pt;
     color:${esc(document.getElementById("sp-color").value)};font-weight:700">${esc(text)}</span>`;
+}
+
+async function loadGdrive() {
+  const box = document.getElementById("gdrive-panel");
+  if (!box) return;
+  let g = {};
+  try { g = await api("/api/admin/gdrive"); } catch (e) { return; }
+  const scanInfo = g.last_scan
+    ? `Last scan: ${g.last_scan.replace("T", " ").slice(0, 16)} — ${esc(g.last_status)}`
+    : "Not scanned yet.";
+  box.innerHTML = `
+    <h3>🟢 Automatic stamping — Google Workspace (server-side)</h3>
+    <p class="muted" style="font-size:13.5px;margin-bottom:12px">
+      Stamps every Google Doc in your domain automatically, by your rules, with no user action —
+      the only real way to protect documents. Requires a one-time Google service account with
+      domain-wide delegation (see the setup guide in <span class="mono">google-workspace/AUTO_STAMP_SETUP.md</span>).</p>
+    <div class="slider-row"><label>Enabled</label>
+      <input type="checkbox" id="gd-enabled" ${g.enabled ? "checked" : ""} style="width:auto;flex:0"></div>
+    <label>Service account key (JSON)${g.service_account_configured ? ' — <span class="muted">configured for ' + esc(g.client_email) + ', leave blank to keep</span>' : ""}</label>
+    <textarea id="gd-sa" rows="4" placeholder='{ "type": "service_account", "client_email": "...", "private_key": "..." }'></textarea>
+    <label>Admin user to act as (domain-wide delegation subject)</label>
+    <input id="gd-subject" value="${esc(g.impersonate_subject || "")}" placeholder="admin@yourdomain.com">
+    <div class="row">
+      <button class="fixed" onclick="saveGdrive()">Save</button>
+      <button class="fixed btn-ghost" onclick="scanGdrive()">Scan &amp; stamp now</button>
+      <span style="flex:1"></span>
+    </div>
+    <p class="muted" style="font-size:12.5px;margin-top:10px">${esc(scanInfo)} Once enabled, ClassifyHub also rescans automatically every hour.</p>
+  `;
+}
+
+async function saveGdrive() {
+  try {
+    await api("/api/admin/gdrive", {
+      method: "PUT",
+      body: {
+        enabled: document.getElementById("gd-enabled").checked,
+        service_account_json: document.getElementById("gd-sa").value.trim(),
+        impersonate_subject: document.getElementById("gd-subject").value.trim(),
+      },
+    });
+    flash("Google Workspace settings saved");
+    loadGdrive();
+  } catch (e) { flash(e.message, "err"); }
+}
+
+async function scanGdrive() {
+  flash("Scanning Google Drive…");
+  try {
+    const r = await api("/api/admin/gdrive/scan", { method: "POST" });
+    flash("Scan result: " + r.status);
+    loadGdrive();
+  } catch (e) { flash(e.message, "err"); }
 }
 
 async function saveStamp() {
