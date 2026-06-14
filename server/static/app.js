@@ -617,6 +617,17 @@ const views = {
         </table>
       </div>
       <div class="panel" style="max-width:640px">
+        <h3>Add-in token</h3>
+        <p class="muted" style="font-size:13px;margin-bottom:10px">
+          Paste this into the Office or Google Workspace add-in's connection settings so it can
+          auto-classify documents against your rules. It identifies you for this session — treat it
+          like a password.</p>
+        <div class="row">
+          <input class="mono" id="addin-token" readonly value="${esc(S.token || "")}">
+          <button class="fixed btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('addin-token').value).then(()=>flash('Token copied'))">Copy</button>
+        </div>
+      </div>
+      <div class="panel" style="max-width:640px">
         <h3>Enforce in Google Workspace</h3>
         <p class="muted" style="font-size:13.5px;margin-bottom:10px">
           A Google Workspace add-on stamps Google Docs, Sheets, Slides and Gmail (subject + body at

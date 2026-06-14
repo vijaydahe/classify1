@@ -8,6 +8,7 @@
     "https://www.googleapis.com/auth/presentations.currentonly",
     "https://www.googleapis.com/auth/gmail.addons.execute",
     "https://www.googleapis.com/auth/gmail.addons.current.action.compose",
+    "https://www.googleapis.com/auth/script.locale",
     "https://www.googleapis.com/auth/script.external_request",
     "https://www.googleapis.com/auth/script.storage"
   ],
@@ -15,7 +16,6 @@
     "common": {
       "name": "ClassifyHub",
       "logoUrl": "https://classify1-chi.vercel.app/static/office-addin/icon-128.png",
-      "useLocaleFromApp": true,
       "homepageTrigger": { "runFunction": "onHomepage" }
     },
     "docs":   { "homepageTrigger": { "runFunction": "onHomepage" } },

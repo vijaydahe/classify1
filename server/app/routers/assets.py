@@ -64,7 +64,21 @@ def classify_asset(
     return asset
 
 
-@router.post("/bulk-csv")
+@router.post("/classify-preview")
+def classify_preview(
+    payload: AssetClassifyRequest,
+    user: User = Depends(require_tenant_user), db: Session = Depends(get_db),
+):
+    """Classify text against the tenant's rules WITHOUT storing an asset.
+
+    Used by the Office / Google Workspace add-ins to auto-suggest a label from
+    document content. Read-only, so it doesn't consume the asset quota.
+    """
+    label, matched = classify_text(db, user.tenant_id, payload.name, payload.content)
+    return {
+        "label": {"name": label.name, "level": label.level, "color": label.color} if label else None,
+        "matched_rules": ", ".join(matched),
+    }
 async def bulk_classify_csv(
     file: UploadFile,
     user: User = Depends(require_tenant_user), db: Session = Depends(get_db),
